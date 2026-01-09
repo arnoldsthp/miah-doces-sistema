@@ -8,15 +8,14 @@ export default function NovaVendaPage() {
   const [carrinho, setCarrinho] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 
-  // 1. Busca pura e simples (exatamente como estava antes)
   useEffect(() => {
     async function fetchProdutos() {
       setLoading(true)
-      // Selecionando '*' para não haver erro de nome de coluna no cache
       const { data, error } = await supabase
         .from('inventory')
         .select('*')
-      
+        .order('name', { ascending: true })
+
       if (!error && data) {
         setProdutos(data)
       }
@@ -25,7 +24,6 @@ export default function NovaVendaPage() {
     fetchProdutos()
   }, [])
 
-  // 2. Adicionar ao carrinho
   const adicionarAoCarrinho = (produto: any) => {
     setCarrinho(prev => {
       const itemExiste = prev.find(item => item.id === produto.id)
@@ -38,11 +36,6 @@ export default function NovaVendaPage() {
     })
   }
 
-  // 3. Remover do carrinho (A LIXEIRA)
-  const removerDoCarrinho = (id: any) => {
-    setCarrinho(prev => prev.filter(item => item.id !== id))
-  }
-
   const total = carrinho.reduce((acc, item) => acc + (item.price * item.quantidade), 0)
 
   if (loading) return <div className="p-8 text-center text-black font-bold">Carregando Miah Doces...</div>
@@ -50,10 +43,9 @@ export default function NovaVendaPage() {
   return (
     <div className="flex flex-col lg:flex-row gap-6 text-black min-h-[calc(100vh-120px)]">
       
-      {/* VITRINE */}
+      {/* LISTA DE PRODUTOS */}
       <div className="flex-1 px-2 md:px-0">
         <h2 className="text-2xl font-black text-pink-600 mb-6 tracking-tighter uppercase">Vitrine</h2>
-        
         <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3">
           {produtos.map(produto => (
             <button
@@ -72,9 +64,11 @@ export default function NovaVendaPage() {
         </div>
       </div>
 
-      {/* COMANDA */}
+      {/* COMANDA (VOLTANDO AO SIMPLES) */}
       <div className="w-full lg:w-[400px] bg-white rounded-3xl shadow-xl border border-gray-100 p-6 flex flex-col h-[500px] lg:h-auto lg:max-h-[85vh] sticky bottom-0 lg:top-24">
-        <h2 className="text-xl font-black text-gray-800 mb-6">🛒 Comanda</h2>
+        <h2 className="text-xl font-black text-gray-800 mb-6 flex items-center gap-2">
+          <span>🛒</span> Comanda
+        </h2>
 
         <div className="flex-1 overflow-y-auto space-y-4 pr-2">
           {carrinho.length === 0 ? (
@@ -85,27 +79,14 @@ export default function NovaVendaPage() {
             carrinho.map(item => (
               <div key={item.id} className="flex items-center justify-between">
                 <div className="flex-1">
-                  <p className="font-bold text-sm text-gray-800 uppercase text-[11px]">{item.name}</p>
+                  <p className="font-bold text-sm text-gray-800 uppercase text-[11px] leading-tight">{item.name}</p>
                   <p className="text-[10px] font-bold text-gray-400">
                     {item.quantidade}x R$ {Number(item.price).toFixed(2)}
                   </p>
                 </div>
-                
-                <div className="flex items-center gap-2">
-                  <p className="font-black text-pink-600 text-sm">
-                    R$ {(item.price * item.quantidade).toFixed(2)}
-                  </p>
-                  
-                  {/* BOTÃO LIXEIRA */}
-                  <button
-                    onClick={() => removerDoCarrinho(item.id)}
-                    className="p-2 text-gray-300 hover:text-red-500 transition-all"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M3 6h18m-2 0v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6m3 0V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
-                    </svg>
-                  </button>
-                </div>
+                <p className="font-black text-pink-600 text-sm">
+                  R$ {(item.price * item.quantidade).toFixed(2)}
+                </p>
               </div>
             ))
           )}
@@ -113,7 +94,7 @@ export default function NovaVendaPage() {
 
         <div className="border-t border-gray-100 pt-6 mt-4">
           <div className="flex justify-between items-center mb-6">
-            <span className="font-bold text-gray-400 uppercase text-[10px]">Total</span>
+            <span className="font-bold text-gray-400 uppercase text-[10px] tracking-widest">Total</span>
             <span className="text-3xl font-black text-pink-600">
               R$ {total.toFixed(2)}
             </span>
