@@ -3,7 +3,9 @@ import { NextResponse, type NextRequest } from 'next/server'
 
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({
-    request: { headers: request.headers },
+    request: {
+      headers: request.headers,
+    },
   })
 
   const supabase = createServerClient(
@@ -32,35 +34,21 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  // 1. Tenta recuperar a sessão
   const { data: { session } } = await supabase.auth.getSession()
-  
-  const isLoginPage = request.nextUrl.pathname.startsWith('/login')
-  const isPublicFile = request.nextUrl.pathname.includes('.') // Ignora imagens/favicons
 
-  // 2. LOG DE DIAGNÓSTICO (Aparece no painel da Vercel)
-  console.log(`Caminho: ${request.nextUrl.pathname} | Sessão Ativa: ${!!session}`)
-
-  // REGRA A: Se NÃO tem sessão e NÃO está no login, vai para o login
-  if (!session && !isLoginPage && !isPublicFile) {
-    const redirectUrl = request.nextUrl.clone()
-    redirectUrl.pathname = '/login'
-    return NextResponse.redirect(redirectUrl)
+  // Redireciona para o login se não houver sessão e não estiver na página de login
+  if (!session && !request.nextUrl.pathname.startsWith('/login')) {
+    return NextResponse.redirect(new URL('/login', request.url))
   }
 
-  // REGRA B: Se JÁ tem sessão e tenta entrar no login, vai para o dashboard
-  if (session && isLoginPage) {
-    const redirectUrl = request.nextUrl.clone()
-    redirectUrl.pathname = '/dashboard'
-    return NextResponse.redirect(redirectUrl)
+  // Redireciona para o dashboard se já estiver logado e tentar acessar o login
+  if (session && request.nextUrl.pathname.startsWith('/login')) {
+    return NextResponse.redirect(new URL('/dashboard', request.url))
   }
 
   return response
 }
 
-// Configuração de quais páginas o Proxy deve vigiar
 export const config = {
-  matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
-  ],
+  matcher: ['/((?!api|_next/static|_next/image|favicon.ico).*)'],
 }
