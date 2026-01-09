@@ -32,19 +32,23 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  // IMPORTANTE: Usamos ogetSession primeiro pois é mais rápido para o Middleware
+  // Usamos getSession para uma verificação rápida de cookie no servidor
   const { data: { session } } = await supabase.auth.getSession()
 
   const isLoginPage = request.nextUrl.pathname.startsWith('/login')
 
-  // Se NÃO está logado e tenta acessar as páginas do sistema
+  // REGRA: Se não houver sessão e não estiver no login, redireciona
   if (!session && !isLoginPage) {
-    return NextResponse.redirect(new URL('/login', request.url))
+    const url = request.nextUrl.clone()
+    url.pathname = '/login'
+    return NextResponse.redirect(url)
   }
 
-  // Se JÁ está logado e tenta acessar o login, manda para o dashboard
+  // REGRA: Se já estiver logado e tentar ir para o login, vai pro dashboard
   if (session && isLoginPage) {
-    return NextResponse.redirect(new URL('/dashboard', request.url))
+    const url = request.nextUrl.clone()
+    url.pathname = '/dashboard'
+    return NextResponse.redirect(url)
   }
 
   return response

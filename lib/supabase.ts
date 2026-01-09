@@ -7,8 +7,6 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
-    detectSessionInUrl: true,
-    storageKey: 'sb-auth-token', // Nome padrão que o middleware procura
-    flowType: 'pkce' // Tipo de fluxo mais seguro e moderno para Next.js
+    detectSessionInUrl: true
   }
 })
