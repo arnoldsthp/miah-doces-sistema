@@ -23,12 +23,12 @@ export default function VendasAnaliticoPage() {
     fetchVendas()
   }, [])
 
-  if (loading) return <div className="p-8 text-center text-black font-bold uppercase tracking-widest">Gerando Relatório Analítico...</div>
+  if (loading) return <div className="p-8 text-center text-black font-bold uppercase tracking-widest">Gerando Relatório...</div>
 
   return (
     <div className="p-4 md:p-8 text-black min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto">
-        <h2 className="text-2xl font-black text-pink-600 mb-8 uppercase tracking-tighter">Histórico de Vendas (Item a Item)</h2>
+        <h2 className="text-2xl font-black text-pink-600 mb-8 uppercase tracking-tighter">Histórico Analítico por Item</h2>
         
         <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
           <div className="overflow-x-auto">
@@ -40,13 +40,13 @@ export default function VendasAnaliticoPage() {
                   <th className="p-4 text-[10px] font-black uppercase text-gray-400 text-center">Qtd</th>
                   <th className="p-4 text-[10px] font-black uppercase text-gray-400">Preço Tabela</th>
                   <th className="p-4 text-[10px] font-black uppercase text-gray-400 text-red-500">Desconto</th>
-                  <th className="p-4 text-[10px] font-black uppercase text-gray-400 text-green-600">Preço Pago</th>
+                  <th className="p-4 text-[10px] font-black uppercase text-gray-400 text-green-600">Total Pago</th>
                 </tr>
               </thead>
               <tbody>
                 {vendasItens.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="p-8 text-center text-gray-400 font-bold uppercase text-xs">Sem registros</td>
+                    <td colSpan={6} className="p-8 text-center text-gray-400 font-bold uppercase text-xs tracking-widest">Sem vendas registradas</td>
                   </tr>
                 ) : (
                   vendasItens.map((item) => (

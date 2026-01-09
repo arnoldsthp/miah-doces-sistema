@@ -9,7 +9,7 @@ export default function NovaVendaPage() {
   const [loading, setLoading] = useState(true)
   const [finalizando, setFinalizando] = useState(false)
 
-  // Busca os produtos da vitrine
+  // 1. Busca os produtos da vitrine - Usando colunas 'name' e 'price'
   useEffect(() => {
     async function fetchProdutos() {
       setLoading(true)
@@ -26,6 +26,7 @@ export default function NovaVendaPage() {
     fetchProdutos()
   }, [])
 
+  // 2. Adiciona item ao carrinho (inicializa desconto_item com 0)
   const adicionarAoCarrinho = (produto: any) => {
     setCarrinho(prev => {
       const itemExiste = prev.find(item => item.id === produto.id)
@@ -34,10 +35,12 @@ export default function NovaVendaPage() {
           item.id === produto.id ? { ...item, quantidade: item.quantidade + 1 } : item
         )
       }
+      // Aqui usamos os nomes da tabela inventory (name e price)
       return [...prev, { ...produto, quantidade: 1, desconto_item: 0 }]
     })
   }
 
+  // 3. Atualiza o desconto do item específico
   const atualizarDesconto = (id: any, valor: string) => {
     const desc = parseFloat(valor) || 0
     setCarrinho(prev => prev.map(item => 
@@ -49,16 +52,16 @@ export default function NovaVendaPage() {
     setCarrinho(prev => prev.filter(item => item.id !== id))
   }
 
+  // 4. Grava na tabela 'sales_items' conforme a sua estrutura de imagem
   const finalizarVenda = async () => {
     if (carrinho.length === 0) return
     setFinalizando(true)
 
     try {
-      // Mapeamento exato para as colunas da imagem sales_items
       const itensParaSalvar = carrinho.map(item => ({
-        product_name: item.name,
+        product_name: item.name,      // 'name' do inventory vira 'product_name' no sales_items
         quantity: item.quantidade,
-        original_price: item.price,
+        original_price: item.price,   // 'price' do inventory vira 'original_price'
         discount: item.desconto_item,
         final_price: (item.price * item.quantidade) - item.desconto_item
       }))
@@ -95,7 +98,7 @@ export default function NovaVendaPage() {
               onClick={() => adicionarAoCarrinho(produto)}
               className="group p-4 bg-white border border-gray-200 rounded-2xl shadow-sm hover:border-pink-300 transition-all text-left flex flex-col justify-between h-32 active:scale-95"
             >
-              <p className="font-bold text-gray-800 leading-tight uppercase text-[11px] group-hover:text-pink-600">
+              <p className="font-bold text-gray-800 leading-tight uppercase text-[11px] group-hover:text-pink-600 transition-colors">
                 {produto.name}
               </p>
               <p className="text-pink-500 font-black text-lg">
@@ -128,24 +131,24 @@ export default function NovaVendaPage() {
                       {item.quantidade}x R$ {Number(item.price).toFixed(2)}
                     </p>
                   </div>
-                  <button onClick={() => removerDoCarrinho(item.id)} className="text-gray-300 hover:text-red-500 transition-colors">
+                  <button onClick={() => removerDoCarrinho(item.id)} className="text-red-400 text-[10px] font-bold uppercase hover:text-red-600">
                     Remover
                   </button>
                 </div>
 
                 <div className="flex items-center gap-4 mt-2">
                   <div className="flex-1">
-                    <label className="text-[9px] font-bold text-gray-400 uppercase block mb-1">Desconto (R$)</label>
+                    <label className="text-[9px] font-bold text-gray-400 uppercase block mb-1 tracking-widest">Desconto (R$)</label>
                     <input 
                       type="number"
                       step="0.01"
                       value={item.desconto_item}
                       onChange={(e) => atualizarDesconto(item.id, e.target.value)}
-                      className="w-full p-2 bg-gray-50 border border-gray-100 rounded-lg text-xs font-bold text-black outline-none"
+                      className="w-full p-2 bg-gray-50 border border-gray-200 rounded-lg text-xs font-bold text-black outline-none"
                     />
                   </div>
                   <div className="text-right">
-                    <label className="text-[9px] font-bold text-gray-400 uppercase block mb-1">Subtotal</label>
+                    <label className="text-[9px] font-bold text-gray-400 uppercase block mb-1 tracking-widest">Subtotal</label>
                     <p className="font-black text-pink-600 text-sm">
                       R$ {((item.price * item.quantidade) - item.desconto_item).toFixed(2)}
                     </p>
@@ -158,8 +161,8 @@ export default function NovaVendaPage() {
 
         <div className="border-t border-gray-100 pt-6 mt-4">
           <div className="flex justify-between items-center mb-6">
-            <span className="font-bold text-gray-400 uppercase text-[10px]">Total Final</span>
-            <span className="text-3xl font-black text-pink-600">
+            <span className="font-bold text-gray-400 uppercase text-[10px] tracking-widest">Total com Descontos</span>
+            <span className="text-3xl font-black text-pink-600 tracking-tighter">
               R$ {totalGeral.toFixed(2)}
             </span>
           </div>
@@ -167,7 +170,7 @@ export default function NovaVendaPage() {
           <button
             onClick={finalizarVenda}
             disabled={carrinho.length === 0 || finalizando}
-            className="w-full py-4 bg-pink-500 text-white font-black rounded-2xl shadow-lg hover:bg-pink-600 disabled:bg-gray-200 transition-all uppercase text-xs"
+            className="w-full py-4 bg-pink-500 text-white font-black rounded-2xl shadow-lg hover:bg-pink-600 disabled:bg-gray-200 transition-all uppercase text-xs tracking-widest"
           >
             {finalizando ? 'Gravando...' : 'Finalizar Venda'}
           </button>
