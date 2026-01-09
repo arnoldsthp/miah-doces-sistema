@@ -9,10 +9,11 @@ export default function NovaVendaPage() {
   const [loading, setLoading] = useState(true)
   const [finalizando, setFinalizando] = useState(false)
 
-  // 1. Busca os produtos da vitrine - Usando colunas 'name' e 'price'
+  // 1. Busca os produtos da vitrine (VIEW inventory)
   useEffect(() => {
     async function fetchProdutos() {
       setLoading(true)
+
       const { data, error } = await supabase
         .from('inventory')
         .select('*')
@@ -21,89 +22,119 @@ export default function NovaVendaPage() {
       if (!error && data) {
         setProdutos(data)
       }
+
       setLoading(false)
     }
+
     fetchProdutos()
   }, [])
 
-  // 2. Adiciona item ao carrinho (inicializa desconto_item com 0)
+  // 2. Adiciona item ao carrinho
   const adicionarAoCarrinho = (produto: any) => {
+    if (produto.stock <= 0) return
+
     setCarrinho(prev => {
       const itemExiste = prev.find(item => item.id === produto.id)
+
       if (itemExiste) {
+        if (itemExiste.quantidade + 1 > produto.stock) return prev
+
         return prev.map(item =>
-          item.id === produto.id ? { ...item, quantidade: item.quantidade + 1 } : item
+          item.id === produto.id
+            ? { ...item, quantidade: item.quantidade + 1 }
+            : item
         )
       }
-      // Aqui usamos os nomes da tabela inventory (name e price)
+
       return [...prev, { ...produto, quantidade: 1, desconto_item: 0 }]
     })
   }
 
-  // 3. Atualiza o desconto do item específico
+  // 3. Atualiza desconto
   const atualizarDesconto = (id: any, valor: string) => {
     const desc = parseFloat(valor) || 0
-    setCarrinho(prev => prev.map(item => 
-      item.id === id ? { ...item, desconto_item: desc } : item
-    ))
+    setCarrinho(prev =>
+      prev.map(item =>
+        item.id === id ? { ...item, desconto_item: desc } : item
+      )
+    )
   }
 
   const removerDoCarrinho = (id: any) => {
     setCarrinho(prev => prev.filter(item => item.id !== id))
   }
 
-  // 4. Grava na tabela 'sales_items' conforme a sua estrutura de imagem
+  // 4. Finaliza venda
   const finalizarVenda = async () => {
     if (carrinho.length === 0) return
     setFinalizando(true)
 
     try {
       const itensParaSalvar = carrinho.map(item => ({
-        product_name: item.name,      // 'name' do inventory vira 'product_name' no sales_items
+        product_name: item.name,
         quantity: item.quantidade,
-        original_price: item.price,   // 'price' do inventory vira 'original_price'
+        original_price: item.price,
         discount: item.desconto_item,
         final_price: (item.price * item.quantidade) - item.desconto_item
       }))
 
       const { error } = await supabase.from('sales_items').insert(itensParaSalvar)
-      
       if (error) throw error
 
-      alert("Venda finalizada com sucesso!")
+      alert('Venda finalizada com sucesso!')
       setCarrinho([])
     } catch (err: any) {
-      alert("Erro ao gravar venda: " + err.message)
+      alert('Erro ao gravar venda: ' + err.message)
     } finally {
       setFinalizando(false)
     }
   }
 
-  const totalGeral = carrinho.reduce((acc, item) => 
-    acc + ((item.price * item.quantidade) - item.desconto_item), 0
+  const totalGeral = carrinho.reduce(
+    (acc, item) => acc + ((item.price * item.quantidade) - item.desconto_item),
+    0
   )
 
-  if (loading) return <div className="p-8 text-center text-black font-bold uppercase tracking-widest">Carregando Vitrine...</div>
+  if (loading)
+    return (
+      <div className="p-8 text-center text-black font-bold uppercase tracking-widest">
+        Carregando Vitrine...
+      </div>
+    )
 
   return (
     <div className="flex flex-col lg:flex-row gap-6 text-black min-h-screen bg-gray-50 p-4">
       
       {/* VITRINE */}
       <div className="flex-1">
-        <h2 className="text-2xl font-black text-pink-600 mb-6 uppercase tracking-tighter">Vitrine de Doces</h2>
+        <h2 className="text-2xl font-black text-pink-600 mb-6 uppercase tracking-tighter">
+          Vitrine de Doces
+        </h2>
+
         <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-4">
           {produtos.map(produto => (
             <button
               key={produto.id}
+              disabled={produto.stock <= 0}
               onClick={() => adicionarAoCarrinho(produto)}
-              className="group p-4 bg-white border border-gray-200 rounded-2xl shadow-sm hover:border-pink-300 transition-all text-left flex flex-col justify-between h-32 active:scale-95"
+              className={`group p-4 bg-white border border-gray-200 rounded-2xl shadow-sm transition-all text-left flex flex-col justify-between h-32 active:scale-95
+                ${produto.stock <= 0
+                  ? 'opacity-30 cursor-not-allowed'
+                  : 'hover:border-pink-300'}
+              `}
             >
               <p className="font-bold text-gray-800 leading-tight uppercase text-[11px] group-hover:text-pink-600 transition-colors">
                 {produto.name}
               </p>
-              <p className="text-pink-500 font-black text-lg">
-                R$ {Number(produto.price).toFixed(2)}
-              </p>
+
+              <div>
+                <p className="text-pink-500 font-black text-lg">
+                  R$ {Number(produto.price).toFixed(2)}
+                </p>
+                <p className="text-[10px] text-gray-400 font-bold mt-1">
+                  Estoque: {produto.stock}
+                </p>
+              </div>
             </button>
           ))}
         </div>
@@ -119,36 +150,47 @@ export default function NovaVendaPage() {
           {carrinho.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full opacity-10">
               <span className="text-6xl mb-2">🧁</span>
-              <p className="font-bold text-xs uppercase text-center">Aguardando Pedido</p>
+              <p className="font-bold text-xs uppercase text-center">
+                Aguardando Pedido
+              </p>
             </div>
           ) : (
             carrinho.map(item => (
               <div key={item.id} className="border-b border-gray-100 pb-4">
                 <div className="flex justify-between items-start mb-2">
                   <div className="flex-1">
-                    <p className="font-bold text-sm text-gray-800 uppercase text-[11px] leading-tight">{item.name}</p>
+                    <p className="font-bold text-sm text-gray-800 uppercase text-[11px] leading-tight">
+                      {item.name}
+                    </p>
                     <p className="text-[10px] font-bold text-gray-400 mt-1">
                       {item.quantidade}x R$ {Number(item.price).toFixed(2)}
                     </p>
                   </div>
-                  <button onClick={() => removerDoCarrinho(item.id)} className="text-red-400 text-[10px] font-bold uppercase hover:text-red-600">
+                  <button
+                    onClick={() => removerDoCarrinho(item.id)}
+                    className="text-red-400 text-[10px] font-bold uppercase hover:text-red-600"
+                  >
                     Remover
                   </button>
                 </div>
 
                 <div className="flex items-center gap-4 mt-2">
                   <div className="flex-1">
-                    <label className="text-[9px] font-bold text-gray-400 uppercase block mb-1 tracking-widest">Desconto (R$)</label>
-                    <input 
+                    <label className="text-[9px] font-bold text-gray-400 uppercase block mb-1 tracking-widest">
+                      Desconto (R$)
+                    </label>
+                    <input
                       type="number"
                       step="0.01"
                       value={item.desconto_item}
-                      onChange={(e) => atualizarDesconto(item.id, e.target.value)}
+                      onChange={e => atualizarDesconto(item.id, e.target.value)}
                       className="w-full p-2 bg-gray-50 border border-gray-200 rounded-lg text-xs font-bold text-black outline-none"
                     />
                   </div>
                   <div className="text-right">
-                    <label className="text-[9px] font-bold text-gray-400 uppercase block mb-1 tracking-widest">Subtotal</label>
+                    <label className="text-[9px] font-bold text-gray-400 uppercase block mb-1 tracking-widest">
+                      Subtotal
+                    </label>
                     <p className="font-black text-pink-600 text-sm">
                       R$ {((item.price * item.quantidade) - item.desconto_item).toFixed(2)}
                     </p>
@@ -161,12 +203,14 @@ export default function NovaVendaPage() {
 
         <div className="border-t border-gray-100 pt-6 mt-4">
           <div className="flex justify-between items-center mb-6">
-            <span className="font-bold text-gray-400 uppercase text-[10px] tracking-widest">Total com Descontos</span>
+            <span className="font-bold text-gray-400 uppercase text-[10px] tracking-widest">
+              Total com Descontos
+            </span>
             <span className="text-3xl font-black text-pink-600 tracking-tighter">
               R$ {totalGeral.toFixed(2)}
             </span>
           </div>
-          
+
           <button
             onClick={finalizarVenda}
             disabled={carrinho.length === 0 || finalizando}
