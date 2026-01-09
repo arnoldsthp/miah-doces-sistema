@@ -8,13 +8,6 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: true,
-    storageKey: 'sb-auth-token', // Nome exato que o proxy busca
-    cookieOptions: {
-      name: 'sb-auth-token',
-      lifetime: 60 * 60 * 24 * 7, // 7 dias
-      domain: '', // Deixe vazio para pegar o domínio atual da Vercel
-      path: '/',
-      sameSite: 'lax',
-    }
+    storageKey: 'sb-auth-token'
   }
 })
