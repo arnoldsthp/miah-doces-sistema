@@ -1,7 +1,6 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
-// O nome da função DEVE ser "proxy" se o arquivo for "proxy.ts"
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({
     request: { headers: request.headers },
@@ -27,10 +26,19 @@ export async function proxy(request: NextRequest) {
     }
   )
 
-  const { data: { user } } = await supabase.auth.getUser()
+  // Usar getSession aqui é fundamental para o Next.js 16 reconhecer o cookie do navegador
+  const { data: { session } } = await supabase.auth.getSession()
 
-  if (!user && !request.nextUrl.pathname.startsWith('/login')) {
+  const isLoginPage = request.nextUrl.pathname.startsWith('/login')
+
+  // Se não tem sessão e não está no login, volta pro login
+  if (!session && !isLoginPage) {
     return NextResponse.redirect(new URL('/login', request.url))
+  }
+
+  // Se tem sessão e está no login, vai pro dashboard
+  if (session && isLoginPage) {
+    return NextResponse.redirect(new URL('/dashboard', request.url))
   }
 
   return response
