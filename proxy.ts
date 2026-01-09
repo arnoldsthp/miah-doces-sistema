@@ -1,7 +1,8 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
-export async function middleware(request: NextRequest) {
+// O nome da função DEVE ser "proxy" se o arquivo for "proxy.ts"
+export async function proxy(request: NextRequest) {
   let response = NextResponse.next({
     request: { headers: request.headers },
   })
@@ -26,24 +27,15 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  // Usamos getUser() em vez de getSession para garantir 100% de segurança
   const { data: { user } } = await supabase.auth.getUser()
 
-  const isLoginPage = request.nextUrl.pathname === '/login'
-
-  // Se NÃO está logado e tenta entrar no sistema
-  if (!user && !isLoginPage) {
+  if (!user && !request.nextUrl.pathname.startsWith('/login')) {
     return NextResponse.redirect(new URL('/login', request.url))
-  }
-
-  // Se JÁ está logado e tenta ir para o login
-  if (user && isLoginPage) {
-    return NextResponse.redirect(new URL('/dashboard', request.url))
   }
 
   return response
 }
 
 export const config = {
-  matcher: ['/((?!api|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)'],
+  matcher: ['/((?!api|_next/static|_next/image|favicon.ico).*)'],
 }
