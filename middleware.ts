@@ -11,31 +11,39 @@ export async function middleware(request: NextRequest) {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        get(name: string) { return request.cookies.get(name)?.value },
+        get(name: string) {
+          return request.cookies.get(name)?.value
+        },
         set(name: string, value: string, options: CookieOptions) {
           request.cookies.set({ name, value, ...options })
-          response = NextResponse.next({ request: { headers: request.headers } })
+          response = NextResponse.next({
+            request: { headers: request.headers },
+          })
           response.cookies.set({ name, value, ...options })
         },
         remove(name: string, options: CookieOptions) {
           request.cookies.set({ name, value: '', ...options })
-          response = NextResponse.next({ request: { headers: request.headers } })
+          response = NextResponse.next({
+            request: { headers: request.headers },
+          })
           response.cookies.set({ name, value: '', ...options })
         },
       },
     }
   )
 
-  // Usamos getUser() que é o método mais seguro para validar a sessão no servidor
-  const { data: { user } } = await supabase.auth.getUser()
+  // IMPORTANTE: Usamos ogetSession primeiro pois é mais rápido para o Middleware
+  const { data: { session } } = await supabase.auth.getSession()
 
-  // Se NÃO está logado e NÃO está na página de login, manda para o login
-  if (!user && !request.nextUrl.pathname.startsWith('/login')) {
+  const isLoginPage = request.nextUrl.pathname.startsWith('/login')
+
+  // Se NÃO está logado e tenta acessar as páginas do sistema
+  if (!session && !isLoginPage) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
 
-  // Se JÁ está logado e tenta ir para o login, manda para o dashboard
-  if (user && request.nextUrl.pathname.startsWith('/login')) {
+  // Se JÁ está logado e tenta acessar o login, manda para o dashboard
+  if (session && isLoginPage) {
     return NextResponse.redirect(new URL('/dashboard', request.url))
   }
 

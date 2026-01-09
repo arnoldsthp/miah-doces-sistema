@@ -8,7 +8,7 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: true,
-    storageKey: 'supabase-auth-token', // Nome padrão para o cookie
-    storage: typeof window !== 'undefined' ? window.localStorage : undefined
+    storageKey: 'sb-auth-token', // Nome padrão que o middleware procura
+    flowType: 'pkce' // Tipo de fluxo mais seguro e moderno para Next.js
   }
 })
