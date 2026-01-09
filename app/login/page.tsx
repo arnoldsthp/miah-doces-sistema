@@ -15,6 +15,7 @@ export default function LoginPage() {
     setError(null)
 
     try {
+      // 1. Tenta a autenticação com o Supabase
       const { data, error: authError } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -23,17 +24,20 @@ export default function LoginPage() {
       if (authError) throw authError
 
       if (data?.user) {
-        // O "Pulo do Gato": 
-        // Em vez de usar router.push, usamos o window.location para forçar
-        // o navegador a enviar os novos cookies para o Proxy/Middleware.
-        console.log("Login realizado com sucesso! Redirecionando...")
+        console.log("Autenticado com sucesso!")
         
+        // 2. O "Pulo do Gato": Forçamos o navegador a recarregar a página 
+        // no Dashboard para que os cookies sejam lidos corretamente.
         setTimeout(() => {
           window.location.href = '/dashboard'
-        }, 800) // Pequeno delay para garantir que o cookie foi escrito
+        }, 500)
       }
     } catch (err: any) {
-      setError(err.message || 'Erro ao fazer login')
+      // Tradução amigável de erros comuns
+      const message = err.message === 'Invalid login credentials' 
+        ? 'E-mail ou senha incorretos.' 
+        : err.message
+      setError(message)
     } finally {
       setLoading(false)
     }
@@ -41,42 +45,55 @@ export default function LoginPage() {
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-gray-50">
-      <div className="w-full max-w-md p-8 bg-white rounded-lg shadow-md">
-        <h1 className="mb-6 text-2xl font-bold text-center text-pink-600">Miah Doces - Acesso</h1>
+      <div className="w-full max-w-md p-8 bg-white rounded-xl shadow-lg border border-gray-100">
+        <div className="flex flex-col items-center mb-8">
+          <h1 className="text-3xl font-bold text-pink-600">Miah Doces</h1>
+          <p className="text-gray-500 mt-2">Acesse o painel de pedidos</p>
+        </div>
         
-        <form onSubmit={handleLogin} className="space-y-4">
+        <form onSubmit={handleLogin} className="space-y-5">
           <div>
-            <label className="block mb-1 text-sm font-medium">E-mail</label>
+            <label className="block mb-1 text-sm font-semibold text-gray-700">E-mail</label>
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full p-2 border rounded focus:ring-2 focus:ring-pink-300 outline-none"
+              placeholder="seu@email.com"
+              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-300 focus:border-pink-500 outline-none transition-all"
               required
             />
           </div>
           
           <div>
-            <label className="block mb-1 text-sm font-medium">Senha</label>
+            <label className="block mb-1 text-sm font-semibold text-gray-700">Senha</label>
             <input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full p-2 border rounded focus:ring-2 focus:ring-pink-300 outline-none"
+              placeholder="••••••••"
+              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-300 focus:border-pink-500 outline-none transition-all"
               required
             />
           </div>
 
-          {error && <p className="text-sm text-red-500">{error}</p>}
+          {error && (
+            <div className="p-3 bg-red-50 border-l-4 border-red-500 text-red-700 text-sm">
+              {error}
+            </div>
+          )}
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-2 text-white bg-pink-500 rounded hover:bg-pink-600 disabled:bg-gray-400 transition-colors"
+            className="w-full py-3 text-white font-bold bg-pink-500 rounded-lg hover:bg-pink-600 disabled:bg-gray-400 disabled:cursor-not-allowed transition-all shadow-md active:scale-[0.98]"
           >
-            {loading ? 'Entrando...' : 'Entrar'}
+            {loading ? 'Verificando...' : 'Entrar no Sistema'}
           </button>
         </form>
+        
+        <p className="mt-8 text-center text-xs text-gray-400">
+          &copy; 2026 Miah Doces - Gestão de Confeitaria
+        </p>
       </div>
     </div>
   )
