@@ -1,94 +1,83 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import Link from 'next/link'
 
-export default function NovaComandaPage() {
-  const [cliente, setCliente] = useState('')
-  const [tipo, setTipo] = useState<'BALCAO' | 'DELIVERY'>('BALCAO')
-  const [mesa, setMesa] = useState('')
-  const [carregando, setCarregando] = useState(false)
+type Comanda = {
+  id: number
+  numero_pedido: string
+  cliente: string
+  comanda_numero: number
+  total: number
+  status: string
+}
 
-  async function criarComanda() {
-    if (carregando) return
-    setCarregando(true)
+export default function ComandasAbertasPage() {
+  const [comandas, setComandas] = useState<Comanda[]>([])
+  const [loading, setLoading] = useState(true)
+
+  async function carregarComandas() {
+    setLoading(true)
 
     const { data, error } = await supabase
       .from('vendas')
-      .insert({
-        cliente: cliente || 'Consumidor Final',
-        tipo,
-        mesa: tipo === 'BALCAO' ? mesa || 'Balcão' : null,
-        status: 'ABERTA'
-      })
-      .select()
-      .single()
+      .select('id, numero_pedido, cliente, comanda_numero, total, status')
+      .eq('status', 'EM_ABERTO')
+      .order('data', { ascending: true })
 
-    setCarregando(false)
-
-    if (error) {
-      alert('Erro ao criar comanda: ' + error.message)
-      return
+    if (!error && data) {
+      setComandas(data as any)
     }
 
-    localStorage.setItem('saleId', data.id.toString())
-    window.location.href = '/'
+    setLoading(false)
+  }
+
+  useEffect(() => {
+    carregarComandas()
+  }, [])
+
+  if (loading) {
+    return <div className="p-8 font-bold">Carregando comandas...</div>
   }
 
   return (
-    <div className="min-h-screen bg-gray-100 flex items-center justify-center p-6">
-      <div className="bg-white rounded-[40px] p-10 w-full max-w-md shadow-xl">
-        <h1 className="text-2xl font-black mb-6">🧾 Nova Comanda</h1>
+    <div className="p-8 bg-gray-50 min-h-screen">
+      <h1 className="text-3xl font-black text-pink-600 mb-8">📋 Comandas em Aberto</h1>
 
-        <div className="space-y-4">
-          <div>
-            <label className="text-[10px] font-black uppercase text-gray-400">Cliente</label>
-            <input
-              value={cliente}
-              onChange={e => setCliente(e.target.value)}
-              placeholder="Nome do cliente"
-              className="w-full p-4 bg-gray-50 rounded-2xl font-bold outline-none"
-            />
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+        {comandas.map(c => (
+          <div key={c.id} className="bg-white p-6 rounded-2xl shadow border">
+            <p className="text-xs text-gray-400 font-bold">Pedido</p>
+            <p className="font-black text-lg">{c.numero_pedido}</p>
+
+            <p className="mt-2 text-sm">
+              <span className="font-bold">Cliente:</span> {c.cliente}
+            </p>
+
+            <p className="text-sm">
+              <span className="font-bold">Comanda:</span> {c.comanda_numero}
+            </p>
+
+            <p className="mt-3 font-black text-pink-600">
+              Total: R$ {Number(c.total || 0).toFixed(2)}
+            </p>
+
+            <Link
+              href={`/comandas/${c.id}`}
+              className="block mt-4 text-center py-3 bg-pink-500 text-white font-black rounded-xl hover:bg-pink-600"
+            >
+              Detalhes
+            </Link>
           </div>
-
-          <div>
-            <label className="text-[10px] font-black uppercase text-gray-400">Tipo</label>
-            <div className="flex gap-2">
-              {['BALCAO', 'DELIVERY'].map(t => (
-                <button
-                  key={t}
-                  onClick={() => setTipo(t as any)}
-                  className={`flex-1 py-3 rounded-xl font-black text-[10px] uppercase ${
-                    tipo === t ? 'bg-pink-500 text-white' : 'bg-gray-100 text-gray-400'
-                  }`}
-                >
-                  {t}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {tipo === 'BALCAO' && (
-            <div>
-              <label className="text-[10px] font-black uppercase text-gray-400">Mesa / Comanda</label>
-              <input
-                value={mesa}
-                onChange={e => setMesa(e.target.value)}
-                placeholder="Ex: Mesa 5"
-                className="w-full p-4 bg-gray-50 rounded-2xl font-bold outline-none"
-              />
-            </div>
-          )}
-
-          <button
-            onClick={criarComanda}
-            disabled={carregando}
-            className="w-full py-4 bg-pink-500 hover:bg-pink-600 text-white font-black rounded-2xl mt-6"
-          >
-            {carregando ? 'Criando...' : 'Iniciar Venda'}
-          </button>
-        </div>
+        ))}
       </div>
+
+      {comandas.length === 0 && (
+        <p className="text-center text-gray-400 mt-20 font-bold">
+          Nenhuma comanda em aberto.
+        </p>
+      )}
     </div>
   )
 }

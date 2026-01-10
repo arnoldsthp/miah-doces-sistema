@@ -1,204 +1,143 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 
-export default function NovaVendaPage() {
-  const [produtos, setProdutos] = useState<any[]>([])
-  const [carrinho, setCarrinho] = useState<any[]>([])
+type Produto = {
+  id: number
+  name: string
+  price: number
+  stock: number
+}
+
+type Comanda = {
+  id: number
+  cliente: string
+  numero_pedido: string
+  comanda_numero: number
+}
+
+export default function NovoPedidoPage() {
+  const [produtos, setProdutos] = useState<Produto[]>([])
+  const [comanda, setComanda] = useState<Comanda | null>(null)
+  const [cliente, setCliente] = useState('')
+  const [tipo, setTipo] = useState<'BALCAO' | 'DELIVERY'>('BALCAO')
+  const [comandaNumero, setComandaNumero] = useState('')
   const [loading, setLoading] = useState(true)
-  const [finalizando, setFinalizando] = useState(false)
 
-  // Carrega vitrine (VIEW inventory)
   useEffect(() => {
-    async function fetchProdutos() {
-      setLoading(true)
-      const { data, error } = await supabase
-        .from('inventory')
-        .select('*')
-        .order('name', { ascending: true })
-
-      if (!error && data) setProdutos(data)
-      setLoading(false)
-    }
-    fetchProdutos()
+    carregarVitrine()
+    carregarComandaAtiva()
   }, [])
 
-  // Adicionar ao carrinho
-  const adicionarAoCarrinho = (produto: any) => {
-    if (produto.stock <= 0) return
-
-    setCarrinho(prev => {
-      const itemExiste = prev.find(i => i.id === produto.id)
-
-      if (itemExiste) {
-        if (itemExiste.quantidade + 1 > produto.stock) return prev
-        return prev.map(i =>
-          i.id === produto.id ? { ...i, quantidade: i.quantidade + 1 } : i
-        )
-      }
-
-      return [...prev, { ...produto, quantidade: 1, desconto_item: 0 }]
-    })
+  async function carregarVitrine() {
+    const { data } = await supabase.from('inventory').select('*').order('name')
+    setProdutos(data || [])
+    setLoading(false)
   }
 
-  const aumentarQuantidade = (id: number) => {
-    setCarrinho(prev =>
-      prev.map(item => {
-        if (item.id !== id) return item
-        const produto = produtos.find(p => p.id === id)
-        if (!produto) return item
-        if (item.quantidade + 1 > produto.stock) return item
-        return { ...item, quantidade: item.quantidade + 1 }
-      })
-    )
+  async function carregarComandaAtiva() {
+    const id = localStorage.getItem('saleId')
+    if (!id) return
+
+    const { data } = await supabase.from('vendas').select('*').eq('id', id).single()
+    if (data) setComanda(data)
   }
 
-  const diminuirQuantidade = (id: number) => {
-    setCarrinho(prev =>
-      prev
-        .map(item =>
-          item.id === id ? { ...item, quantidade: item.quantidade - 1 } : item
-        )
-        .filter(item => item.quantidade > 0)
-    )
-  }
-
-  const atualizarDesconto = (id: any, valor: string) => {
-    const desc = parseFloat(valor) || 0
-    setCarrinho(prev =>
-      prev.map(item =>
-        item.id === id ? { ...item, desconto_item: desc } : item
-      )
-    )
-  }
-
-  const removerDoCarrinho = (id: any) => {
-    setCarrinho(prev => prev.filter(item => item.id !== id))
-  }
-
-  const finalizarVenda = async () => {
-    if (carrinho.length === 0) return
-    setFinalizando(true)
-
-    try {
-      const itensParaSalvar = carrinho.map(item => ({
-        product_name: item.name,
-        quantity: item.quantidade,
-        original_price: item.price,
-        discount: item.desconto_item,
-        final_price: (item.price * item.quantidade) - item.desconto_item
-      }))
-
-      const { error } = await supabase.from('sales_items').insert(itensParaSalvar)
-      if (error) throw error
-
-      alert('Venda finalizada com sucesso!')
-      setCarrinho([])
-    } catch (err: any) {
-      alert('Erro ao gravar venda: ' + err.message)
-    } finally {
-      setFinalizando(false)
+  async function criarComanda() {
+    if (!comandaNumero) {
+      alert('Informe o número da comanda')
+      return
     }
+
+    const { data, error } = await supabase.rpc('criar_comanda', {
+      p_cliente: cliente || 'Consumidor Final',
+      p_tipo: tipo,
+      p_comanda: Number(comandaNumero)
+    })
+
+    if (error) {
+      alert(error.message)
+      return
+    }
+
+    localStorage.setItem('saleId', data.id)
+    setComanda(data)
   }
 
-  const totalGeral = carrinho.reduce(
-    (acc, item) => acc + ((item.price * item.quantidade) - item.desconto_item),
-    0
-  )
+  async function adicionar(produto: Produto) {
+    if (!comanda) {
+      alert('Crie a comanda primeiro')
+      return
+    }
 
-  if (loading)
-    return <div className="p-8 text-center font-bold">Carregando Vitrine...</div>
+    const { data: existente } = await supabase
+      .from('sales_items')
+      .select('*')
+      .eq('sale_id', comanda.id)
+      .eq('product_name', produto.name)
+      .single()
+
+    if (existente) {
+      await supabase.from('sales_items').update({
+        quantity: existente.quantity + 1,
+        final_price: (existente.quantity + 1) * produto.price
+      }).eq('id', existente.id)
+    } else {
+      await supabase.from('sales_items').insert({
+        sale_id: comanda.id,
+        product_name: produto.name,
+        quantity: 1,
+        original_price: produto.price,
+        discount: 0,
+        final_price: produto.price
+      })
+    }
+
+    await recalcularTotal()
+  }
+
+  async function recalcularTotal() {
+    const { data } = await supabase.from('sales_items').select('final_price').eq('sale_id', comanda!.id)
+    const total = (data || []).reduce((s, i) => s + Number(i.final_price), 0)
+    await supabase.from('vendas').update({ total }).eq('id', comanda!.id)
+  }
+
+  if (loading) return <div className="p-8">Carregando...</div>
 
   return (
-    <div className="flex flex-col lg:flex-row gap-6 min-h-screen bg-gray-50 p-4">
+    <div className="flex p-6 gap-6 bg-gray-50 min-h-screen">
       
-      {/* VITRINE */}
       <div className="flex-1">
-        <h2 className="text-2xl font-black text-pink-600 mb-6">Vitrine de Doces</h2>
+        <h1 className="text-2xl font-black mb-4">Novo Pedido</h1>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-4">
-          {produtos.map(produto => (
-            <button
-              key={produto.id}
-              disabled={produto.stock <= 0}
-              onClick={() => adicionarAoCarrinho(produto)}
-              className={`p-4 bg-white border rounded-xl text-left flex flex-col justify-between h-32
-                ${produto.stock <= 0 ? 'opacity-30 cursor-not-allowed' : 'hover:border-pink-400'}
-              `}
-            >
-              <p className="font-bold text-sm">{produto.name}</p>
-              <div>
-                <p className="text-pink-600 font-black">
-                  R$ {Number(produto.price).toFixed(2)}
-                </p>
-                <p className="text-xs text-gray-400">Estoque: {produto.stock}</p>
-              </div>
+        {!comanda && (
+          <div className="bg-white p-4 rounded-xl mb-6">
+            <input placeholder="Cliente" value={cliente} onChange={e => setCliente(e.target.value)} className="border p-2 w-full mb-2" />
+            <input placeholder="Comanda" value={comandaNumero} onChange={e => setComandaNumero(e.target.value)} className="border p-2 w-full mb-2" />
+            <button onClick={criarComanda} className="w-full bg-pink-500 text-white py-3 font-bold rounded">
+              Criar Comanda
+            </button>
+          </div>
+        )}
+
+        <div className="grid grid-cols-3 gap-4">
+          {produtos.map(p => (
+            <button key={p.id} onClick={() => adicionar(p)} className="bg-white p-4 rounded-xl">
+              <p className="font-bold">{p.name}</p>
+              <p>R$ {p.price.toFixed(2)}</p>
             </button>
           ))}
         </div>
       </div>
 
-      {/* COMANDA */}
-      <div className="w-full lg:w-[400px] bg-white p-6 rounded-xl shadow-lg">
-        <h2 className="font-black mb-4">Comanda</h2>
-
-        <div className="space-y-4">
-          {carrinho.map(item => (
-            <div key={item.id} className="border-b pb-3">
-              <div className="flex justify-between">
-                <p className="font-bold text-sm">{item.name}</p>
-                <button
-                  onClick={() => removerDoCarrinho(item.id)}
-                  className="text-red-500 text-xs"
-                >
-                  Remover
-                </button>
-              </div>
-
-              <div className="flex items-center gap-2 mt-2">
-                <button
-                  onClick={() => diminuirQuantidade(item.id)}
-                  className="w-6 h-6 bg-gray-200 rounded-full"
-                >–</button>
-
-                <span className="w-6 text-center">{item.quantidade}</span>
-
-                <button
-                  onClick={() => aumentarQuantidade(item.id)}
-                  className="w-6 h-6 bg-pink-500 text-white rounded-full"
-                >+</button>
-
-                <span className="text-xs text-gray-400 ml-2">
-                  x R$ {Number(item.price).toFixed(2)}
-                </span>
-              </div>
-
-              <input
-                type="number"
-                value={item.desconto_item}
-                onChange={e => atualizarDesconto(item.id, e.target.value)}
-                className="w-full mt-2 p-2 border rounded text-sm"
-                placeholder="Desconto (R$)"
-              />
-            </div>
-          ))}
+      {comanda && (
+        <div className="w-[350px] bg-white p-4 rounded-xl shadow">
+          <p className="font-bold">Pedido: {comanda.numero_pedido}</p>
+          <p>Comanda: {comanda.comanda_numero}</p>
         </div>
+      )}
 
-        <div className="mt-6">
-          <p className="font-bold text-right">
-            Total: R$ {totalGeral.toFixed(2)}
-          </p>
-
-          <button
-            onClick={finalizarVenda}
-            disabled={finalizando || carrinho.length === 0}
-            className="w-full mt-4 py-3 bg-pink-500 text-white font-bold rounded"
-          >
-            {finalizando ? 'Gravando...' : 'Finalizar Venda'}
-          </button>
-        </div>
-      </div>
     </div>
   )
 }
