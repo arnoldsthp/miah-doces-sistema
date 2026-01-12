@@ -1,72 +1,214 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 
+type Item = {
+  id: string
+  created_at: string
+  product_name: string
+  quantity: number
+  original_price: number
+  final_price: number
+  discount: number | null
+  vendas: {
+    numero_pedido: string
+    cliente: string
+    forma_pagamento: string | null
+    desconto_total: number | null
+  }
+}
+
+const filtros = [
+  { key: 'hoje', label: 'HOJE', dias: 0 },
+  { key: 'ontem', label: 'ONTEM', dias: 1 },
+  { key: '7d', label: '7D', dias: 7 },
+  { key: '15d', label: '15D', dias: 15 },
+  { key: '30d', label: '30D', dias: 30 },
+]
+
 export default function VendasAnaliticoPage() {
-  const [vendasItens, setVendasItens] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
+  const [itens, setItens] = useState<Item[]>([])
+  const [filtro, setFiltro] = useState('hoje')
+  const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    async function fetchVendas() {
-      setLoading(true)
-      const { data, error } = await supabase
-        .from('sales_items')
-        .select('*')
-        .order('created_at', { ascending: false })
+    carregar()
+  }, [filtro])
 
-      if (!error && data) {
-        setVendasItens(data)
-      }
-      setLoading(false)
+  async function carregar() {
+    setLoading(true)
+
+    const filtroAtual = filtros.find(f => f.key === filtro)!
+
+    let inicio = new Date()
+    inicio.setHours(0, 0, 0, 0)
+
+    if (filtroAtual.dias > 0) {
+      inicio.setDate(inicio.getDate() - filtroAtual.dias)
     }
-    fetchVendas()
-  }, [])
 
-  if (loading) return <div className="p-8 text-center text-black font-bold uppercase tracking-widest">Gerando Relatório...</div>
+    const { data, error } = await supabase
+      .from('sales_items')
+      .select(`
+        id,
+        created_at,
+        product_name,
+        quantity,
+        original_price,
+        final_price,
+        discount,
+        sale_id,
+        vendas (
+          numero_pedido,
+          cliente,
+          forma_pagamento,
+          desconto_total
+        )
+      `)
+      .gte('created_at', inicio.toISOString())
+      .order('created_at', { ascending: false })
+
+    if (error) {
+      console.error('Erro Supabase:', error)
+      setItens([])
+    } else {
+      setItens(data || [])
+    }
+
+    setLoading(false)
+  }
+
+  function descontoPorItem(item: Item) {
+    const total = item.vendas?.desconto_total || 0
+    if (!total) return 0
+
+    return total / item.quantity
+  }
+
+  function exportarExcel() {
+    const header = [
+      'Data',
+      'Pedido',
+      'Cliente',
+      'Produto',
+      'Qtd',
+      'Preço',
+      'Desconto',
+      'Total',
+      'Pagamento',
+    ]
+
+    const linhas = itens.map(i => [
+      new Date(i.created_at).toLocaleString('pt-BR'),
+      i.vendas?.numero_pedido,
+      i.vendas?.cliente?.toUpperCase(),
+      i.product_name,
+      i.quantity,
+      i.original_price,
+      descontoPorItem(i).toFixed(2),
+      i.final_price,
+      i.vendas?.forma_pagamento || '',
+    ])
+
+    const csv = [header, ...linhas].map(l => l.join(';')).join('\n')
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'vendas.csv'
+    a.click()
+  }
 
   return (
-    <div className="p-4 md:p-8 text-black min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto">
-        <h2 className="text-2xl font-black text-pink-600 mb-8 uppercase tracking-tighter">Histórico Analítico por Item</h2>
-        
-        <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-gray-50 border-b border-gray-100">
-                  <th className="p-4 text-[10px] font-black uppercase text-gray-400">Data</th>
-                  <th className="p-4 text-[10px] font-black uppercase text-gray-400">Produto</th>
-                  <th className="p-4 text-[10px] font-black uppercase text-gray-400 text-center">Qtd</th>
-                  <th className="p-4 text-[10px] font-black uppercase text-gray-400">Preço Tabela</th>
-                  <th className="p-4 text-[10px] font-black uppercase text-gray-400 text-red-500">Desconto</th>
-                  <th className="p-4 text-[10px] font-black uppercase text-gray-400 text-green-600">Total Pago</th>
-                </tr>
-              </thead>
-              <tbody>
-                {vendasItens.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="p-8 text-center text-gray-400 font-bold uppercase text-xs tracking-widest">Sem vendas registradas</td>
-                  </tr>
-                ) : (
-                  vendasItens.map((item) => (
-                    <tr key={item.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
-                      <td className="p-4 text-[11px] font-bold text-gray-500">
-                        {new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(item.created_at))}
-                      </td>
-                      <td className="p-4 text-[11px] font-black text-gray-800 uppercase">{item.product_name}</td>
-                      <td className="p-4 text-[11px] font-bold text-gray-600 text-center">{item.quantity}</td>
-                      <td className="p-4 text-[11px] font-bold text-gray-600">R$ {Number(item.original_price).toFixed(2)}</td>
-                      <td className="p-4 text-[11px] font-bold text-red-500">- R$ {Number(item.discount).toFixed(2)}</td>
-                      <td className="p-4 text-[11px] font-black text-green-600">R$ {Number(item.final_price).toFixed(2)}</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
+    <div className="p-6 bg-gray-50 min-h-screen">
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-3xl font-black text-pink-600">
+          Análise de Vendas por Item
+        </h1>
+
+        <button
+          onClick={exportarExcel}
+          className="bg-green-500 text-white px-4 py-2 rounded font-bold"
+        >
+          Exportar Excel
+        </button>
       </div>
+
+      <div className="flex gap-2 mb-6 bg-white p-2 rounded-full shadow w-fit">
+        {filtros.map(f => (
+          <button
+            key={f.key}
+            onClick={() => setFiltro(f.key)}
+            className={`px-4 py-2 rounded-full font-bold ${
+              filtro === f.key
+                ? 'bg-pink-500 text-white'
+                : 'text-gray-400'
+            }`}
+          >
+            {f.label}
+          </button>
+        ))}
+      </div>
+
+      {loading ? (
+        <p className="font-bold text-center mt-20">Carregando…</p>
+      ) : (
+        <div className="bg-white rounded-xl shadow overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-100">
+              <tr>
+                <th className="p-3">Data</th>
+                <th className="p-3">Pedido</th>
+                <th className="p-3">Cliente</th>
+                <th className="p-3">Produto</th>
+                <th className="p-3">Qtd</th>
+                <th className="p-3">Preço</th>
+                <th className="p-3 text-red-500">Desc.</th>
+                <th className="p-3 text-green-600">Total</th>
+                <th className="p-3">Pagamento</th>
+              </tr>
+            </thead>
+            <tbody>
+              {itens.length === 0 && (
+                <tr>
+                  <td colSpan={9} className="p-8 text-center text-gray-400">
+                    Nenhuma venda encontrada
+                  </td>
+                </tr>
+              )}
+
+              {itens.map(i => (
+                <tr key={i.id} className="border-b">
+                  <td className="p-3">
+                    {new Date(i.created_at).toLocaleString('pt-BR')}
+                  </td>
+                  <td className="p-3">{i.vendas?.numero_pedido}</td>
+                  <td className="p-3 font-bold">
+                    {i.vendas?.cliente?.toUpperCase()}
+                  </td>
+                  <td className="p-3">{i.product_name}</td>
+                  <td className="p-3 text-center">{i.quantity}</td>
+                  <td className="p-3">
+                    R$ {Number(i.original_price).toFixed(2)}
+                  </td>
+                  <td className="p-3 text-red-500">
+                    R$ {descontoPorItem(i).toFixed(2)}
+                  </td>
+                  <td className="p-3 text-green-600 font-bold">
+                    R$ {Number(i.final_price).toFixed(2)}
+                  </td>
+                  <td className="p-3">
+                    {i.vendas?.forma_pagamento || ''}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   )
 }
