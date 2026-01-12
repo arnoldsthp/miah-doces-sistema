@@ -62,22 +62,33 @@ export default function ClientesPage() {
   async function salvar(e: any) {
     e.preventDefault()
 
-    const payload = {
-      nome,
-      telefone: telefone || null,
-      email: email || null,
-      documento: documento || null
-    }
+    // MONTA PAYLOAD LIMPO (sem undefined / null)
+    const payload: any = { nome }
+
+    if (telefone.trim() !== '') payload.telefone = telefone
+    if (email.trim() !== '') payload.email = email
+    if (documento.trim() !== '') payload.documento = documento
+
+    let error
 
     if (clienteEditando) {
-      await supabase
+      const res = await supabase
         .from('clientes')
         .update(payload)
         .eq('id', clienteEditando.id)
+
+      error = res.error
     } else {
-      await supabase
+      const res = await supabase
         .from('clientes')
         .insert(payload)
+
+      error = res.error
+    }
+
+    if (error) {
+      alert('Erro ao salvar cliente: ' + error.message)
+      return
     }
 
     setModalAberto(false)
@@ -88,7 +99,10 @@ export default function ClientesPage() {
     <div className="p-8 bg-gray-50 min-h-screen">
       <div className="flex justify-between mb-6">
         <h1 className="text-2xl font-black">Clientes</h1>
-        <button onClick={abrirNovo} className="bg-pink-500 text-white px-4 py-2 rounded font-bold">
+        <button
+          onClick={abrirNovo}
+          className="bg-pink-500 text-white px-4 py-2 rounded font-bold"
+        >
           Novo Cliente
         </button>
       </div>
@@ -119,7 +133,10 @@ export default function ClientesPage() {
                 <td className="p-3">{c.telefone || '-'}</td>
                 <td className="p-3">{c.email || '-'}</td>
                 <td className="p-3 text-right">
-                  <button onClick={() => abrirEditar(c)} className="text-pink-600 font-bold">
+                  <button
+                    onClick={() => abrirEditar(c)}
+                    className="text-pink-600 font-bold"
+                  >
                     Editar
                   </button>
                 </td>
@@ -131,7 +148,10 @@ export default function ClientesPage() {
 
       {modalAberto && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4">
-          <form onSubmit={salvar} className="bg-white p-8 rounded-xl w-full max-w-md">
+          <form
+            onSubmit={salvar}
+            className="bg-white p-8 rounded-xl w-full max-w-md"
+          >
             <h2 className="font-black mb-4">
               {clienteEditando ? 'Editar Cliente' : 'Novo Cliente'}
             </h2>
@@ -182,7 +202,6 @@ export default function ClientesPage() {
           </form>
         </div>
       )}
-
     </div>
   )
 }
