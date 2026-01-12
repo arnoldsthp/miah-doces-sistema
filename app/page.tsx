@@ -32,6 +32,10 @@ export default function PDV() {
   const [cliente, setCliente] = useState('')
   const [comanda, setComanda] = useState('')
 
+  const [modalFechar, setModalFechar] = useState(false)
+  const [descontoRaw, setDescontoRaw] = useState('')
+  const [forma, setForma] = useState('')
+
   useEffect(() => {
     carregarProdutos()
     carregarVendaAtiva()
@@ -136,12 +140,47 @@ export default function PDV() {
     setVenda(v)
   }
 
+  async function cancelarComanda() {
+    if (!venda) return
+    await supabase.from('sales_items').delete().eq('sale_id', venda.id)
+    await supabase.from('vendas').update({ status: 'cancelada' }).eq('id', venda.id)
+    localStorage.removeItem('saleId')
+    setVenda(null)
+    setItens([])
+  }
+
+  function formatarDesconto(v: string) {
+    const n = v.replace(/\D/g, '')
+    const valor = (Number(n) / 100).toFixed(2)
+    return valor
+  }
+
+  async function fechar() {
+    if (!forma) {
+      alert('Selecione a forma de pagamento')
+      return
+    }
+
+    const desconto = Number(formatarDesconto(descontoRaw))
+    const totalFinal = venda!.total - desconto
+
+    await supabase.from('vendas').update({
+      total: totalFinal,
+      forma_pagamento: forma,
+      status: 'finalizada',
+      fechado_em: new Date().toISOString()
+    }).eq('id', venda!.id)
+
+    localStorage.removeItem('saleId')
+    setVenda(null)
+    setItens([])
+    setModalFechar(false)
+  }
+
   return (
     <div className="flex h-screen p-6 gap-6">
 
-      {/* ESQUERDA */}
       <div className="flex-1">
-
         {!venda && (
           <div className="bg-white p-4 rounded-xl mb-4">
             <input value={cliente} onChange={e => setCliente(e.target.value)} placeholder="Cliente" className="border p-2 w-full mb-2" />
@@ -162,7 +201,6 @@ export default function PDV() {
         </div>
       </div>
 
-      {/* DIREITA — MINICART */}
       {venda && (
         <div className="w-80 bg-white rounded-xl p-4 shadow">
           <h3 className="font-black mb-2">Pedido {venda.numero_pedido}</h3>
@@ -182,6 +220,36 @@ export default function PDV() {
           ))}
 
           <p className="font-black text-right mt-4">Total: R$ {venda.total.toFixed(2)}</p>
+
+          <div className="mt-4 space-y-2">
+            <button onClick={() => { setVenda(null); localStorage.removeItem('saleId') }} className="w-full bg-gray-200 py-2 rounded">Nova Comanda</button>
+            <button onClick={cancelarComanda} className="w-full bg-red-500 text-white py-2 rounded">Cancelar</button>
+            <button onClick={() => setModalFechar(true)} className="w-full bg-green-600 text-white py-2 rounded">Fechar</button>
+          </div>
+        </div>
+      )}
+
+      {modalFechar && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center">
+          <div className="bg-white p-6 rounded-xl w-80">
+            <h3 className="font-black mb-2">Fechar Comanda</h3>
+            <p>Total: R$ {venda!.total.toFixed(2)}</p>
+
+            <input
+              placeholder="Desconto"
+              value={descontoRaw}
+              onChange={e => setDescontoRaw(e.target.value)}
+              className="border p-2 w-full my-2"
+            />
+
+            <p>Total Final: R$ {(venda!.total - Number(formatarDesconto(descontoRaw))).toFixed(2)}</p>
+
+            {['Crédito', 'Débito', 'Pix', 'Dinheiro'].map(f => (
+              <button key={f} onClick={() => setForma(f)} className={`w-full my-1 py-2 rounded ${forma === f ? 'bg-pink-500 text-white' : 'bg-gray-200'}`}>{f}</button>
+            ))}
+
+            <button onClick={fechar} className="w-full mt-3 bg-green-600 text-white py-2 rounded">Confirmar</button>
+          </div>
         </div>
       )}
 
