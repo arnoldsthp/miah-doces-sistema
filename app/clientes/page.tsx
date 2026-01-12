@@ -62,20 +62,22 @@ export default function ClientesPage() {
   async function salvar(e: any) {
     e.preventDefault()
 
+    const payload = {
+      nome,
+      telefone: telefone || null,
+      email: email || null,
+      documento: documento || null
+    }
+
     if (clienteEditando) {
-      await supabase.from('clientes').update({
-        nome,
-        telefone,
-        email,
-        documento
-      }).eq('id', clienteEditando.id)
+      await supabase
+        .from('clientes')
+        .update(payload)
+        .eq('id', clienteEditando.id)
     } else {
-      await supabase.from('clientes').insert({
-        nome,
-        telefone,
-        email,
-        documento
-      })
+      await supabase
+        .from('clientes')
+        .insert(payload)
     }
 
     setModalAberto(false)
@@ -127,7 +129,6 @@ export default function ClientesPage() {
         </table>
       </div>
 
-      {/* MODAL */}
       {modalAberto && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4">
           <form onSubmit={salvar} className="bg-white p-8 rounded-xl w-full max-w-md">
@@ -136,17 +137,45 @@ export default function ClientesPage() {
             </h2>
 
             <div className="space-y-3">
-              <input required value={nome} onChange={e => setNome(e.target.value)} placeholder="Nome" className="border p-2 w-full" />
-              <input value={telefone} onChange={e => setTelefone(e.target.value)} placeholder="Telefone" className="border p-2 w-full" />
-              <input value={email} onChange={e => setEmail(e.target.value)} placeholder="Email" className="border p-2 w-full" />
-              <input value={documento} onChange={e => setDocumento(e.target.value)} placeholder="CPF/CNPJ" className="border p-2 w-full" />
+              <input
+                required
+                value={nome}
+                onChange={e => setNome(e.target.value)}
+                placeholder="Nome"
+                className="border p-2 w-full"
+              />
+              <input
+                value={telefone}
+                onChange={e => setTelefone(e.target.value)}
+                placeholder="Telefone"
+                className="border p-2 w-full"
+              />
+              <input
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                placeholder="Email"
+                className="border p-2 w-full"
+              />
+              <input
+                value={documento}
+                onChange={e => setDocumento(e.target.value)}
+                placeholder="CPF / CNPJ"
+                className="border p-2 w-full"
+              />
             </div>
 
             <div className="flex gap-2 mt-6">
-              <button type="button" onClick={() => setModalAberto(false)} className="flex-1 bg-gray-200 py-2 rounded">
+              <button
+                type="button"
+                onClick={() => setModalAberto(false)}
+                className="flex-1 bg-gray-200 py-2 rounded"
+              >
                 Cancelar
               </button>
-              <button type="submit" className="flex-1 bg-pink-500 text-white py-2 rounded font-bold">
+              <button
+                type="submit"
+                className="flex-1 bg-pink-500 text-white py-2 rounded font-bold"
+              >
                 Salvar
               </button>
             </div>
