@@ -9,119 +9,63 @@ type Produto = {
   price: number
 }
 
-type Cliente = {
-  id: string
-  nome: string
-}
-
 type Item = {
-  id: number
+  id: string
   product_name: string
   quantity: number
   original_price: number
   final_price: number
 }
 
-type Comanda = {
+type Venda = {
   id: number
-  numero_pedido: string
-  comanda_numero: number
   cliente: string
-  cliente_id: string | null
+  numero_pedido: string
   total: number
 }
 
-export default function NovoPedidoPage() {
+export default function PDV() {
   const [produtos, setProdutos] = useState<Produto[]>([])
-  const [buscaProduto, setBuscaProduto] = useState('')
-
-  const [buscaCliente, setBuscaCliente] = useState('')
-  const [clientes, setClientes] = useState<Cliente[]>([])
-  const [clienteSelecionado, setClienteSelecionado] = useState<Cliente | null>(null)
-
-  const [comanda, setComanda] = useState<Comanda | null>(null)
+  const [busca, setBusca] = useState('')
+  const [venda, setVenda] = useState<Venda | null>(null)
   const [itens, setItens] = useState<Item[]>([])
-  const [numeroComanda, setNumeroComanda] = useState('')
+  const [cliente, setCliente] = useState('')
+  const [comanda, setComanda] = useState('')
 
   useEffect(() => {
-    carregarVitrine()
-    carregarComandaAtiva()
+    carregarProdutos()
+    carregarVendaAtiva()
   }, [])
 
-  async function carregarVitrine() {
+  async function carregarProdutos() {
     const { data } = await supabase.from('inventory').select('*').order('name')
     setProdutos(data || [])
   }
 
-  async function carregarComandaAtiva() {
+  async function carregarVendaAtiva() {
     const id = localStorage.getItem('saleId')
     if (!id) return
 
-    const { data: venda } = await supabase.from('vendas').select('*').eq('id', id).single()
-    if (!venda) return
+    const { data: v } = await supabase.from('vendas').select('*').eq('id', id).single()
+    if (!v) return
 
-    setComanda(venda)
-    setBuscaCliente(venda.cliente)
+    setVenda(v)
+    setCliente(v.cliente)
 
-    const { data: items } = await supabase.from('sales_items').select('*').eq('sale_id', venda.id)
+    const { data: items } = await supabase.from('sales_items').select('*').eq('sale_id', v.id)
     setItens(items || [])
   }
 
-  // --------------------------
-  // AUTOCOMPLETE CLIENTE
-  // --------------------------
-  useEffect(() => {
-    if (buscaCliente.length < 2) {
-      setClientes([])
-      return
-    }
-
-    const t = setTimeout(async () => {
-      const { data } = await supabase
-        .from('clientes')
-        .select('*')
-        .ilike('nome', `%${buscaCliente}%`)
-        .order('nome')
-        .limit(8)
-
-      setClientes(data || [])
-    }, 300)
-
-    return () => clearTimeout(t)
-  }, [buscaCliente])
-
-  function selecionarCliente(c: Cliente) {
-    setClienteSelecionado(c)
-    setBuscaCliente(c.nome)
-    setClientes([])
-  }
-
-  // --------------------------
-  // CRIAR COMANDA
-  // --------------------------
   async function criarComanda() {
-    if (!numeroComanda) {
-      alert('Informe o número da comanda')
+    if (!cliente || !comanda) {
+      alert('Informe cliente e comanda')
       return
-    }
-
-    let clienteId = clienteSelecionado?.id || null
-
-    if (!clienteId && buscaCliente.trim()) {
-      const { data: novoCliente } = await supabase
-        .from('clientes')
-        .insert({ nome: buscaCliente.trim() })
-        .select()
-        .single()
-
-      clienteId = novoCliente.id
-      setClienteSelecionado(novoCliente)
     }
 
     const { data, error } = await supabase.rpc('criar_comanda', {
-      p_cliente: buscaCliente || 'Consumidor Final',
+      p_cliente: cliente,
       p_tipo: 'BALCAO',
-      p_comanda: Number(numeroComanda)
+      p_comanda: Number(comanda)
     })
 
     if (error) {
@@ -129,54 +73,41 @@ export default function NovoPedidoPage() {
       return
     }
 
-    // ⚠️ RPC retorna ARRAY
-    const venda = data[0]
-
-    await supabase.from('vendas')
-      .update({
-        cliente_id: clienteId,
-        cliente: buscaCliente || 'Consumidor Final'
-      })
-      .eq('id', venda.id)
-
-    localStorage.setItem('saleId', venda.id.toString())
-    setComanda(venda)
+    localStorage.setItem('saleId', data.id)
+    setVenda(data)
     setItens([])
   }
 
-  // --------------------------
-  // ITENS
-  // --------------------------
-  async function adicionar(produto: Produto) {
-    if (!comanda) return
+  async function adicionar(p: Produto) {
+    if (!venda) return
 
     const { data: existente } = await supabase
       .from('sales_items')
       .select('*')
-      .eq('sale_id', comanda.id)
-      .eq('product_name', produto.name)
+      .eq('sale_id', venda.id)
+      .eq('product_name', p.name)
       .maybeSingle()
 
     if (existente) {
       await supabase.from('sales_items').update({
         quantity: existente.quantity + 1,
-        final_price: (existente.quantity + 1) * produto.price
+        final_price: (existente.quantity + 1) * p.price
       }).eq('id', existente.id)
     } else {
       await supabase.from('sales_items').insert({
-        sale_id: comanda.id,
-        product_name: produto.name,
+        sale_id: venda.id,
+        product_name: p.name,
         quantity: 1,
-        original_price: produto.price,
+        original_price: p.price,
         discount: 0,
-        final_price: produto.price
+        final_price: p.price
       })
     }
 
-    await recarregarItens()
+    recarregarItens()
   }
 
-  async function alterarQuantidade(id: number, delta: number) {
+  async function alterar(id: string, delta: number) {
     const item = itens.find(i => i.id === id)
     if (!item) return
 
@@ -191,112 +122,69 @@ export default function NovoPedidoPage() {
       }).eq('id', id)
     }
 
-    await recarregarItens()
+    recarregarItens()
   }
 
   async function recarregarItens() {
-    const { data } = await supabase.from('sales_items').select('*').eq('sale_id', comanda!.id)
+    const { data } = await supabase.from('sales_items').select('*').eq('sale_id', venda!.id)
     setItens(data || [])
 
     const total = (data || []).reduce((s, i) => s + Number(i.final_price), 0)
-    await supabase.from('vendas').update({ total }).eq('id', comanda!.id)
+    await supabase.from('vendas').update({ total }).eq('id', venda!.id)
 
-    const { data: vendaAtual } = await supabase.from('vendas').select('*').eq('id', comanda!.id).single()
-    setComanda(vendaAtual)
+    const { data: v } = await supabase.from('vendas').select('*').eq('id', venda!.id).single()
+    setVenda(v)
   }
 
-  // --------------------------
-  // UI
-  // --------------------------
   return (
-    <div className="flex h-screen">
+    <div className="flex h-screen p-6 gap-6">
 
-      <div className="flex-1 p-6">
+      {/* ESQUERDA */}
+      <div className="flex-1">
 
-        {!comanda && (
-          <div className="bg-white p-4 rounded-xl mb-4 relative">
-            <input
-              placeholder="Cliente"
-              value={buscaCliente}
-              onChange={e => {
-                setBuscaCliente(e.target.value)
-                setClienteSelecionado(null)
-              }}
-              className="border p-2 w-full mb-2"
-            />
-
-            {clientes.length > 0 && (
-              <div className="absolute bg-white border w-full z-50 max-h-60 overflow-auto">
-                {clientes.map(c => (
-                  <div
-                    key={c.id}
-                    onClick={() => selecionarCliente(c)}
-                    className="p-2 hover:bg-gray-100 cursor-pointer"
-                  >
-                    {c.nome}
-                  </div>
-                ))}
-              </div>
-            )}
-
-            <input
-              placeholder="Comanda"
-              value={numeroComanda}
-              onChange={e => setNumeroComanda(e.target.value)}
-              className="border p-2 w-full mb-2"
-            />
-
-            <button onClick={criarComanda} className="w-full bg-pink-500 text-white py-3 font-bold rounded">
-              Criar Comanda
-            </button>
+        {!venda && (
+          <div className="bg-white p-4 rounded-xl mb-4">
+            <input value={cliente} onChange={e => setCliente(e.target.value)} placeholder="Cliente" className="border p-2 w-full mb-2" />
+            <input value={comanda} onChange={e => setComanda(e.target.value)} placeholder="Comanda" className="border p-2 w-full mb-2" />
+            <button onClick={criarComanda} className="bg-pink-500 text-white w-full py-3 font-bold rounded">Criar Comanda</button>
           </div>
         )}
 
-        <input
-          placeholder="Buscar produto..."
-          value={buscaProduto}
-          onChange={e => setBuscaProduto(e.target.value)}
-          className="border p-2 w-full mb-4"
-        />
+        <input placeholder="Buscar produto..." value={busca} onChange={e => setBusca(e.target.value)} className="border p-2 w-full mb-4" />
 
         <div className="grid grid-cols-3 gap-4">
-          {produtos
-            .filter(p => p.name.toLowerCase().includes(buscaProduto.toLowerCase()))
-            .map(p => (
-              <button
-                key={p.id}
-                onClick={() => adicionar(p)}
-                className="bg-white p-4 rounded shadow hover:bg-pink-50"
-              >
-                <p className="font-bold">{p.name}</p>
-                <p>R$ {Number(p.price).toFixed(2)}</p>
-              </button>
-            ))}
+          {produtos.filter(p => p.name.toLowerCase().includes(busca.toLowerCase())).map(p => (
+            <button key={p.id} onClick={() => adicionar(p)} className="bg-white p-4 rounded shadow">
+              <p className="font-bold">{p.name}</p>
+              <p>R$ {p.price.toFixed(2)}</p>
+            </button>
+          ))}
         </div>
-
-        {comanda && (
-          <div className="mt-6 bg-white p-4 rounded-xl shadow">
-            <h3 className="font-black mb-2">Pedido {comanda.numero_pedido}</h3>
-
-            {itens.map(i => (
-              <div key={i.id} className="flex justify-between items-center border-b py-2">
-                <span>{i.product_name}</span>
-                <div className="flex items-center gap-2">
-                  <button onClick={() => alterarQuantidade(i.id, -1)} className="px-2 bg-gray-200">-</button>
-                  <span>{i.quantity}</span>
-                  <button onClick={() => alterarQuantidade(i.id, 1)} className="px-2 bg-gray-200">+</button>
-                  <span className="ml-4">R$ {Number(i.final_price).toFixed(2)}</span>
-                </div>
-              </div>
-            ))}
-
-            <div className="text-right font-black text-xl mt-4">
-              Total: R$ {Number(comanda.total).toFixed(2)}
-            </div>
-          </div>
-        )}
-
       </div>
+
+      {/* DIREITA — MINICART */}
+      {venda && (
+        <div className="w-80 bg-white rounded-xl p-4 shadow">
+          <h3 className="font-black mb-2">Pedido {venda.numero_pedido}</h3>
+
+          {itens.map(i => (
+            <div key={i.id} className="border-b py-2">
+              <p className="font-bold">{i.product_name}</p>
+              <div className="flex justify-between items-center">
+                <div>
+                  <button onClick={() => alterar(i.id, -1)}>-</button>
+                  <span className="mx-2">{i.quantity}</span>
+                  <button onClick={() => alterar(i.id, 1)}>+</button>
+                </div>
+                <span>R$ {i.final_price.toFixed(2)}</span>
+              </div>
+            </div>
+          ))}
+
+          <p className="font-black text-right mt-4">Total: R$ {venda.total.toFixed(2)}</p>
+        </div>
+      )}
+
     </div>
   )
 }
