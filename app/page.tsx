@@ -38,10 +38,8 @@ export default function NovoPedidoPage() {
   const [cliente, setCliente] = useState('')
   const [tipo, setTipo] = useState('BALCAO')
   const [numeroComanda, setNumeroComanda] = useState('')
+  const [mostrarCancelar, setMostrarCancelar] = useState(false)
 
-  // --------------------
-  // INIT
-  // --------------------
   useEffect(() => {
     carregarVitrine()
     carregarComandaAtiva()
@@ -64,9 +62,6 @@ export default function NovoPedidoPage() {
     setItens(items || [])
   }
 
-  // --------------------
-  // COMANDA
-  // --------------------
   async function criarComanda() {
     if (!numeroComanda) {
       alert('Informe o número da comanda')
@@ -89,14 +84,8 @@ export default function NovoPedidoPage() {
     setItens([])
   }
 
-  // --------------------
-  // ITENS
-  // --------------------
   async function adicionar(produto: Produto) {
-    if (!comanda) {
-      alert('Crie a comanda primeiro')
-      return
-    }
+    if (!comanda) return
 
     const { data: existente } = await supabase
       .from('sales_items')
@@ -153,9 +142,6 @@ export default function NovoPedidoPage() {
     setComanda(vendaAtual)
   }
 
-  // --------------------
-  // AÇÕES
-  // --------------------
   function novaComanda() {
     localStorage.removeItem('saleId')
     setComanda(null)
@@ -168,9 +154,18 @@ export default function NovoPedidoPage() {
     router.push(`/comandas/${comanda!.id}/fechar`)
   }
 
-  // --------------------
-  // FILTRO
-  // --------------------
+  async function descartarComanda() {
+    await supabase.from('vendas').update({
+      status: 'CANCELADA',
+      total: 0
+    }).eq('id', comanda!.id)
+
+    localStorage.removeItem('saleId')
+    setComanda(null)
+    setItens([])
+    setMostrarCancelar(false)
+  }
+
   const produtosFiltrados = produtos.filter(p =>
     p.name.toLowerCase().includes(busca.toLowerCase())
   )
@@ -239,13 +234,38 @@ export default function NovoPedidoPage() {
             Total: R$ {Number(comanda.total || 0).toFixed(2)}
           </div>
 
-          <div className="mt-4 flex gap-2">
-            <button onClick={novaComanda} className="flex-1 py-3 bg-gray-200 font-bold rounded">
-              Nova Comanda
+          <div className="mt-4 flex flex-col gap-2">
+            <button onClick={() => setMostrarCancelar(true)} className="py-2 bg-red-100 text-red-600 font-bold rounded">
+              🗑 Descartar Comanda
             </button>
-            <button onClick={fecharComanda} className="flex-1 py-3 bg-pink-500 text-white font-black rounded">
-              Fechar Comanda
-            </button>
+            <div className="flex gap-2">
+              <button onClick={novaComanda} className="flex-1 py-3 bg-gray-200 font-bold rounded">
+                Nova Comanda
+              </button>
+              <button onClick={fecharComanda} className="flex-1 py-3 bg-pink-500 text-white font-black rounded">
+                Fechar Comanda
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL CANCELAR */}
+      {mostrarCancelar && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center">
+          <div className="bg-white p-8 rounded-xl w-full max-w-sm">
+            <h2 className="font-black mb-4">Descartar Comanda?</h2>
+            <p className="text-sm mb-6">
+              Esta comanda será marcada como CANCELADA e removida do caixa.
+            </p>
+            <div className="flex gap-3">
+              <button onClick={() => setMostrarCancelar(false)} className="flex-1 py-3 bg-gray-200 rounded font-bold">
+                Voltar
+              </button>
+              <button onClick={descartarComanda} className="flex-1 py-3 bg-red-600 text-white rounded font-black">
+                Confirmar
+              </button>
+            </div>
           </div>
         </div>
       )}
