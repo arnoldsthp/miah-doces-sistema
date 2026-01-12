@@ -2,86 +2,137 @@
 
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import * as XLSX from 'xlsx'
 
-type Venda = {
-  numero_pedido: string
+type LinhaVenda = {
+  data: string
+  pedido: string
   cliente: string
-  forma_pagamento: string | null
-  desconto_total: number
+  produto: string
+  qtd: number
+  preco: number
+  desc: number
+  total: number
+  pagamento: string
 }
 
-type ItemAnalitico = {
-  id: string
-  created_at: string
-  product_name: string
-  quantity: number
-  original_price: number
-  final_price: number
-  discount: number
-  vendas: Venda[]   // ← Supabase SEMPRE retorna array
-}
+type Filtro = 'HOJE' | 'ONTEM' | '7D' | '15D' | '30D'
 
-type Filtro = 'hoje' | 'ontem' | '7d' | '15d' | '30d'
+function getDateRange(filtro: Filtro) {
+  const inicio = new Date()
+  const fim = new Date()
+
+  fim.setHours(23, 59, 59, 999)
+
+  switch (filtro) {
+    case 'HOJE':
+      inicio.setHours(0, 0, 0, 0)
+      break
+    case 'ONTEM':
+      inicio.setDate(inicio.getDate() - 1)
+      inicio.setHours(0, 0, 0, 0)
+      fim.setDate(fim.getDate() - 1)
+      fim.setHours(23, 59, 59, 999)
+      break
+    case '7D':
+      inicio.setDate(inicio.getDate() - 6)
+      inicio.setHours(0, 0, 0, 0)
+      break
+    case '15D':
+      inicio.setDate(inicio.getDate() - 14)
+      inicio.setHours(0, 0, 0, 0)
+      break
+    case '30D':
+      inicio.setDate(inicio.getDate() - 29)
+      inicio.setHours(0, 0, 0, 0)
+      break
+  }
+
+  return {
+    dataInicial: inicio.toISOString(),
+    dataFinal: fim.toISOString(),
+  }
+}
 
 export default function VendasAnaliticoPage() {
-  const [itens, setItens] = useState<ItemAnalitico[]>([])
-  const [loading, setLoading] = useState(true)
-  const [filtro, setFiltro] = useState<Filtro>('hoje')
-
-  function calcularPeriodo(f: Filtro) {
-    const hoje = new Date()
-    const inicio = new Date()
-
-    if (f === 'hoje') inicio.setHours(0, 0, 0, 0)
-    if (f === 'ontem') {
-      inicio.setDate(hoje.getDate() - 1)
-      inicio.setHours(0, 0, 0, 0)
-      hoje.setDate(hoje.getDate() - 1)
-      hoje.setHours(23, 59, 59, 999)
-    }
-    if (f === '7d') inicio.setDate(hoje.getDate() - 7)
-    if (f === '15d') inicio.setDate(hoje.getDate() - 15)
-    if (f === '30d') inicio.setDate(hoje.getDate() - 30)
-
-    return {
-      inicio: inicio.toISOString(),
-      fim: hoje.toISOString()
-    }
-  }
+  const [filtro, setFiltro] = useState<Filtro>('HOJE')
+  const [linhas, setLinhas] = useState<LinhaVenda[]>([])
+  const [loading, setLoading] = useState(false)
 
   async function carregar() {
     setLoading(true)
 
-    const { inicio, fim } = calcularPeriodo(filtro)
+    const { dataInicial, dataFinal } = getDateRange(filtro)
 
     const { data, error } = await supabase
       .from('sales_items')
       .select(`
-        id,
         created_at,
         product_name,
         quantity,
         original_price,
         final_price,
-        discount,
         vendas (
           numero_pedido,
           cliente,
-          forma_pagamento,
-          desconto_total
+          forma_pagamento
         )
       `)
-      .gte('created_at', inicio)
-      .lte('created_at', fim)
+      .gte('created_at', dataInicial)
+      .lte('created_at', dataFinal)
       .order('created_at', { ascending: false })
 
     if (error) {
-      console.error('Erro Supabase:', error)
-      setItens([])
-    } else {
-      setItens((data || []) as ItemAnalitico[])
+      console.error(error)
+      setLoading(false)
+      return
     }
 
+    // Agrupar por pedido para ratear o desconto corretamente
+    const agrupado: Record<string, any[]> = {}
+
+    ;(data || []).forEach((row: any) => {
+      const pedido = row.vendas.numero_pedido
+      if (!agrupado[pedido]) agrupado[pedido] = []
+      agrupado[pedido].push(row)
+    })
+
+    const linhasCalculadas: LinhaVenda[] = []
+
+    Object.values(agrupado).forEach((itens) => {
+      const totalBruto = itens.reduce(
+        (s, i) => s + i.original_price * i.quantity,
+        0
+      )
+      const totalLiquido = itens.reduce((s, i) => s + i.final_price, 0)
+
+      const descontoTotal = Number((totalBruto - totalLiquido).toFixed(2))
+      const qtdLinhas = itens.length
+
+      const base = Number((descontoTotal / qtdLinhas).toFixed(2))
+      let resto = Number((descontoTotal - base * qtdLinhas).toFixed(2))
+
+      itens.forEach((row, index) => {
+        let descLinha = base
+        if (index === 0 && resto !== 0) {
+          descLinha = Number((descLinha + resto).toFixed(2))
+        }
+
+        linhasCalculadas.push({
+          data: row.created_at,
+          pedido: row.vendas.numero_pedido,
+          cliente: row.vendas.cliente,
+          produto: row.product_name,
+          qtd: row.quantity,
+          preco: row.original_price,
+          desc: descLinha,
+          total: row.final_price,
+          pagamento: row.vendas.forma_pagamento,
+        })
+      })
+    })
+
+    setLinhas(linhasCalculadas)
     setLoading(false)
   }
 
@@ -89,92 +140,103 @@ export default function VendasAnaliticoPage() {
     carregar()
   }, [filtro])
 
-  return (
-    <div className="p-8 bg-gray-50 min-h-screen text-black">
-      <h1 className="text-3xl font-black text-pink-600 mb-6">
-        Análise de Vendas por Item
-      </h1>
+  function exportarExcel() {
+    const ws = XLSX.utils.json_to_sheet(
+      linhas.map((l) => ({
+        DATA: new Date(l.data).toLocaleString('pt-BR'),
+        PEDIDO: l.pedido,
+        CLIENTE: l.cliente,
+        PRODUTO: l.produto,
+        QTD: l.qtd,
+        PRECO: l.preco,
+        DESCONTO: l.desc,
+        TOTAL: l.total,
+        PAGAMENTO: l.pagamento,
+      }))
+    )
 
-      {/* FILTROS */}
-      <div className="flex gap-2 bg-white p-2 rounded-full w-fit shadow mb-6">
-        {[
-          ['hoje', 'HOJE'],
-          ['ontem', 'ONTEM'],
-          ['7d', '7D'],
-          ['15d', '15D'],
-          ['30d', '30D']
-        ].map(([k, l]) => (
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Vendas')
+    XLSX.writeFile(wb, 'vendas-analitico.xlsx')
+  }
+
+  return (
+    <div className="p-6">
+      <h1 className="text-3xl font-bold mb-6">Análise de Vendas por Item</h1>
+
+      <div className="flex gap-3 mb-6 items-center">
+        {(['HOJE', 'ONTEM', '7D', '15D', '30D'] as Filtro[]).map((f) => (
           <button
-            key={k}
-            onClick={() => setFiltro(k as Filtro)}
-            className={`px-6 py-2 rounded-full font-bold ${
-              filtro === k ? 'bg-pink-500 text-white' : 'text-gray-400'
+            key={f}
+            onClick={() => setFiltro(f)}
+            className={`px-4 py-2 rounded-full font-semibold ${
+              filtro === f
+                ? 'bg-pink-600 text-white'
+                : 'bg-gray-200 text-gray-700'
             }`}
           >
-            {l}
+            {f}
           </button>
         ))}
+
+        <button
+          onClick={exportarExcel}
+          className="ml-auto px-4 py-2 bg-green-600 text-white rounded-lg font-semibold"
+        >
+          Exportar Excel
+        </button>
       </div>
 
-      {loading && <div className="font-bold">Carregando...</div>}
-
-      {!loading && (
-        <div className="bg-white rounded-xl shadow overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-100 uppercase text-xs">
-              <tr>
-                <th className="p-3">Data</th>
-                <th className="p-3">Pedido</th>
-                <th className="p-3">Cliente</th>
-                <th className="p-3">Produto</th>
-                <th className="p-3 text-center">Qtd</th>
-                <th className="p-3">Preço</th>
-                <th className="p-3 text-red-500">Desc.</th>
-                <th className="p-3 text-green-600">Total</th>
-                <th className="p-3">Pagamento</th>
-              </tr>
-            </thead>
-            <tbody>
-              {itens.length === 0 && (
-                <tr>
-                  <td colSpan={9} className="p-8 text-center text-gray-400 font-bold">
-                    Nenhuma venda encontrada
+      <div className="bg-white rounded-xl shadow overflow-x-auto">
+        <table className="min-w-full">
+          <thead>
+            <tr className="bg-gray-100 text-left">
+              <th className="p-3">DATA</th>
+              <th className="p-3">PEDIDO</th>
+              <th className="p-3">CLIENTE</th>
+              <th className="p-3">PRODUTO</th>
+              <th className="p-3">QTD</th>
+              <th className="p-3">PREÇO</th>
+              <th className="p-3 text-red-600">DESC.</th>
+              <th className="p-3 text-green-600">TOTAL</th>
+              <th className="p-3">PAGAMENTO</th>
+            </tr>
+          </thead>
+          <tbody>
+            {!loading &&
+              linhas.map((row, idx) => (
+                <tr key={idx} className="border-t">
+                  <td className="p-3">
+                    {new Date(row.data).toLocaleString('pt-BR')}
                   </td>
+                  <td className="p-3">{row.pedido}</td>
+                  <td className="p-3">{row.cliente}</td>
+                  <td className="p-3">{row.produto}</td>
+                  <td className="p-3">{row.qtd}</td>
+                  <td className="p-3">
+                    {row.preco.toLocaleString('pt-BR', {
+                      style: 'currency',
+                      currency: 'BRL',
+                    })}
+                  </td>
+                  <td className="p-3 text-red-600">
+                    {row.desc.toLocaleString('pt-BR', {
+                      style: 'currency',
+                      currency: 'BRL',
+                    })}
+                  </td>
+                  <td className="p-3 text-green-600 font-semibold">
+                    {row.total.toLocaleString('pt-BR', {
+                      style: 'currency',
+                      currency: 'BRL',
+                    })}
+                  </td>
+                  <td className="p-3">{row.pagamento}</td>
                 </tr>
-              )}
-
-              {itens.map(item => {
-                const venda = item.vendas?.[0]   // ← agora pegamos o primeiro
-
-                const descontoUnit =
-                  venda?.desconto_total && item.quantity
-                    ? Number(venda.desconto_total) / item.quantity
-                    : 0
-
-                return (
-                  <tr key={item.id} className="border-b">
-                    <td className="p-3">
-                      {new Date(item.created_at).toLocaleString('pt-BR')}
-                    </td>
-                    <td className="p-3">{venda?.numero_pedido}</td>
-                    <td className="p-3">{venda?.cliente?.toUpperCase()}</td>
-                    <td className="p-3 font-bold">{item.product_name}</td>
-                    <td className="p-3 text-center">{item.quantity}</td>
-                    <td className="p-3">R$ {Number(item.original_price).toFixed(2)}</td>
-                    <td className="p-3 text-red-600">
-                      - R$ {descontoUnit.toFixed(2)}
-                    </td>
-                    <td className="p-3 text-green-700 font-bold">
-                      R$ {Number(item.final_price).toFixed(2)}
-                    </td>
-                    <td className="p-3">{venda?.forma_pagamento || '-'}</td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
+              ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }
