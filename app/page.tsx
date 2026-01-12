@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { useRouter } from 'next/navigation'
 
 type Produto = {
   id: number
@@ -33,8 +32,6 @@ type Comanda = {
 }
 
 export default function NovoPedidoPage() {
-  const router = useRouter()
-
   const [produtos, setProdutos] = useState<Produto[]>([])
   const [buscaProduto, setBuscaProduto] = useState('')
 
@@ -70,9 +67,9 @@ export default function NovoPedidoPage() {
     setItens(items || [])
   }
 
-  // ------------------------
+  // --------------------------
   // AUTOCOMPLETE CLIENTE
-  // ------------------------
+  // --------------------------
   useEffect(() => {
     if (buscaCliente.length < 2) {
       setClientes([])
@@ -99,26 +96,26 @@ export default function NovoPedidoPage() {
     setClientes([])
   }
 
-  // ------------------------
-  // COMANDA
-  // ------------------------
+  // --------------------------
+  // CRIAR COMANDA
+  // --------------------------
   async function criarComanda() {
     if (!numeroComanda) {
       alert('Informe o número da comanda')
       return
     }
 
-    let clienteId = clienteSelecionado?.id
+    let clienteId = clienteSelecionado?.id || null
 
     if (!clienteId && buscaCliente.trim()) {
-      const { data } = await supabase
+      const { data: novoCliente } = await supabase
         .from('clientes')
         .insert({ nome: buscaCliente.trim() })
         .select()
         .single()
 
-      clienteId = data.id
-      setClienteSelecionado(data)
+      clienteId = novoCliente.id
+      setClienteSelecionado(novoCliente)
     }
 
     const { data, error } = await supabase.rpc('criar_comanda', {
@@ -132,19 +129,24 @@ export default function NovoPedidoPage() {
       return
     }
 
-    await supabase.from('vendas').update({
-      cliente_id: clienteId,
-      cliente: buscaCliente || 'Consumidor Final'
-    }).eq('id', data.id)
+    // ⚠️ RPC retorna ARRAY
+    const venda = data[0]
 
-    localStorage.setItem('saleId', data.id)
-    setComanda(data)
+    await supabase.from('vendas')
+      .update({
+        cliente_id: clienteId,
+        cliente: buscaCliente || 'Consumidor Final'
+      })
+      .eq('id', venda.id)
+
+    localStorage.setItem('saleId', venda.id.toString())
+    setComanda(venda)
     setItens([])
   }
 
-  // ------------------------
+  // --------------------------
   // ITENS
-  // ------------------------
+  // --------------------------
   async function adicionar(produto: Produto) {
     if (!comanda) return
 
@@ -153,7 +155,7 @@ export default function NovoPedidoPage() {
       .select('*')
       .eq('sale_id', comanda.id)
       .eq('product_name', produto.name)
-      .single()
+      .maybeSingle()
 
     if (existente) {
       await supabase.from('sales_items').update({
@@ -203,10 +205,12 @@ export default function NovoPedidoPage() {
     setComanda(vendaAtual)
   }
 
+  // --------------------------
+  // UI
+  // --------------------------
   return (
     <div className="flex h-screen">
 
-      {/* PDV */}
       <div className="flex-1 p-6">
 
         {!comanda && (
@@ -222,7 +226,7 @@ export default function NovoPedidoPage() {
             />
 
             {clientes.length > 0 && (
-              <div className="absolute bg-white border w-full z-50">
+              <div className="absolute bg-white border w-full z-50 max-h-60 overflow-auto">
                 {clientes.map(c => (
                   <div
                     key={c.id}
@@ -256,13 +260,41 @@ export default function NovoPedidoPage() {
         />
 
         <div className="grid grid-cols-3 gap-4">
-          {produtos.filter(p => p.name.toLowerCase().includes(buscaProduto.toLowerCase())).map(p => (
-            <button key={p.id} onClick={() => adicionar(p)} className="bg-white p-4 rounded">
-              <p className="font-bold">{p.name}</p>
-              <p>R$ {p.price.toFixed(2)}</p>
-            </button>
-          ))}
+          {produtos
+            .filter(p => p.name.toLowerCase().includes(buscaProduto.toLowerCase()))
+            .map(p => (
+              <button
+                key={p.id}
+                onClick={() => adicionar(p)}
+                className="bg-white p-4 rounded shadow hover:bg-pink-50"
+              >
+                <p className="font-bold">{p.name}</p>
+                <p>R$ {Number(p.price).toFixed(2)}</p>
+              </button>
+            ))}
         </div>
+
+        {comanda && (
+          <div className="mt-6 bg-white p-4 rounded-xl shadow">
+            <h3 className="font-black mb-2">Pedido {comanda.numero_pedido}</h3>
+
+            {itens.map(i => (
+              <div key={i.id} className="flex justify-between items-center border-b py-2">
+                <span>{i.product_name}</span>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => alterarQuantidade(i.id, -1)} className="px-2 bg-gray-200">-</button>
+                  <span>{i.quantity}</span>
+                  <button onClick={() => alterarQuantidade(i.id, 1)} className="px-2 bg-gray-200">+</button>
+                  <span className="ml-4">R$ {Number(i.final_price).toFixed(2)}</span>
+                </div>
+              </div>
+            ))}
+
+            <div className="text-right font-black text-xl mt-4">
+              Total: R$ {Number(comanda.total).toFixed(2)}
+            </div>
+          </div>
+        )}
 
       </div>
     </div>
