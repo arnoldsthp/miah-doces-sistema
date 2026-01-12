@@ -140,19 +140,24 @@ export default function PDV() {
     setVenda(v)
   }
 
+  function novaComanda() {
+    localStorage.removeItem('saleId')
+    setVenda(null)
+    setItens([])
+    setCliente('')
+    setComanda('')
+  }
+
   async function cancelarComanda() {
     if (!venda) return
     await supabase.from('sales_items').delete().eq('sale_id', venda.id)
     await supabase.from('vendas').update({ status: 'cancelada' }).eq('id', venda.id)
-    localStorage.removeItem('saleId')
-    setVenda(null)
-    setItens([])
+    novaComanda()
   }
 
   function formatarDesconto(v: string) {
     const n = v.replace(/\D/g, '')
-    const valor = (Number(n) / 100).toFixed(2)
-    return valor
+    return (Number(n) / 100).toFixed(2)
   }
 
   async function fechar() {
@@ -171,10 +176,10 @@ export default function PDV() {
       fechado_em: new Date().toISOString()
     }).eq('id', venda!.id)
 
-    localStorage.removeItem('saleId')
-    setVenda(null)
-    setItens([])
+    novaComanda()
     setModalFechar(false)
+    setDescontoRaw('')
+    setForma('')
   }
 
   return (
@@ -222,7 +227,7 @@ export default function PDV() {
           <p className="font-black text-right mt-4">Total: R$ {venda.total.toFixed(2)}</p>
 
           <div className="mt-4 space-y-2">
-            <button onClick={() => { setVenda(null); localStorage.removeItem('saleId') }} className="w-full bg-gray-200 py-2 rounded">Nova Comanda</button>
+            <button onClick={novaComanda} className="w-full bg-gray-200 py-2 rounded">Nova Comanda</button>
             <button onClick={cancelarComanda} className="w-full bg-red-500 text-white py-2 rounded">Cancelar</button>
             <button onClick={() => setModalFechar(true)} className="w-full bg-green-600 text-white py-2 rounded">Fechar</button>
           </div>

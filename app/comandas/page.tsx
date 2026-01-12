@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 
 type Comanda = {
   id: number
@@ -11,23 +11,25 @@ type Comanda = {
   comanda_numero: number
   total: number
   status: string
+  created_at: string
 }
 
 export default function ComandasAbertasPage() {
   const [comandas, setComandas] = useState<Comanda[]>([])
   const [loading, setLoading] = useState(true)
+  const router = useRouter()
 
   async function carregarComandas() {
     setLoading(true)
 
     const { data, error } = await supabase
       .from('vendas')
-      .select('id, numero_pedido, cliente, comanda_numero, total, status')
-      .eq('status', 'EM_ABERTO')
-      .order('data', { ascending: true })
+      .select('id, numero_pedido, cliente, comanda_numero, total, status, created_at')
+      .eq('status', 'aberta')
+      .order('created_at', { ascending: true })
 
-    if (!error && data) {
-      setComandas(data as any)
+    if (!error) {
+      setComandas(data || [])
     }
 
     setLoading(false)
@@ -37,17 +39,32 @@ export default function ComandasAbertasPage() {
     carregarComandas()
   }, [])
 
+  function abrirComanda(id: number) {
+    localStorage.setItem('saleId', String(id))
+    router.push('/')
+  }
+
   if (loading) {
-    return <div className="p-8 font-bold">Carregando comandas...</div>
+    return <div className="p-8 font-bold">Carregando comandas…</div>
   }
 
   return (
     <div className="p-8 bg-gray-50 min-h-screen">
       <h1 className="text-3xl font-black text-pink-600 mb-8">📋 Comandas em Aberto</h1>
 
+      {comandas.length === 0 && (
+        <p className="text-center text-gray-400 mt-20 font-bold">
+          Nenhuma comanda em aberto.
+        </p>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
         {comandas.map(c => (
-          <div key={c.id} className="bg-white p-6 rounded-2xl shadow border">
+          <button
+            key={c.id}
+            onClick={() => abrirComanda(c.id)}
+            className="bg-white p-6 rounded-2xl shadow border text-left hover:border-pink-400 transition"
+          >
             <p className="text-xs text-gray-400 font-bold">Pedido</p>
             <p className="font-black text-lg">{c.numero_pedido}</p>
 
@@ -63,21 +80,12 @@ export default function ComandasAbertasPage() {
               Total: R$ {Number(c.total || 0).toFixed(2)}
             </p>
 
-            <Link
-              href={`/comandas/${c.id}`}
-              className="block mt-4 text-center py-3 bg-pink-500 text-white font-black rounded-xl hover:bg-pink-600"
-            >
-              Detalhes
-            </Link>
-          </div>
+            <p className="mt-2 text-xs text-gray-400">
+              Aberta em {new Date(c.created_at).toLocaleTimeString('pt-BR')}
+            </p>
+          </button>
         ))}
       </div>
-
-      {comandas.length === 0 && (
-        <p className="text-center text-gray-400 mt-20 font-bold">
-          Nenhuma comanda em aberto.
-        </p>
-      )}
     </div>
   )
 }
