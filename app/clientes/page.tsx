@@ -51,6 +51,7 @@ export default function ClientesPage() {
   }
 
   function abrirEditar(c: Cliente) {
+    if (!c.id) return
     setClienteEditando(c)
     setNome(c.nome)
     setTelefone(c.telefone || '')
@@ -62,7 +63,6 @@ export default function ClientesPage() {
   async function salvar(e: any) {
     e.preventDefault()
 
-    // MONTA PAYLOAD LIMPO (sem undefined / null)
     const payload: any = { nome }
 
     if (telefone.trim() !== '') payload.telefone = telefone
@@ -72,6 +72,11 @@ export default function ClientesPage() {
     let error
 
     if (clienteEditando) {
+      if (!clienteEditando.id) {
+        alert('Erro interno: cliente sem ID')
+        return
+      }
+
       const res = await supabase
         .from('clientes')
         .update(payload)
@@ -92,7 +97,8 @@ export default function ClientesPage() {
     }
 
     setModalAberto(false)
-    carregarClientes()
+    setClienteEditando(null)
+    await carregarClientes()
   }
 
   return (
