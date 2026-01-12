@@ -8,7 +8,11 @@ type Produto = {
   id: number
   name: string
   price: number
-  stock: number
+}
+
+type Cliente = {
+  id: string
+  nome: string
 }
 
 type Item = {
@@ -24,7 +28,7 @@ type Comanda = {
   numero_pedido: string
   comanda_numero: number
   cliente: string
-  tipo: string
+  cliente_id: string | null
   total: number
 }
 
@@ -32,13 +36,15 @@ export default function NovoPedidoPage() {
   const router = useRouter()
 
   const [produtos, setProdutos] = useState<Produto[]>([])
-  const [busca, setBusca] = useState('')
+  const [buscaProduto, setBuscaProduto] = useState('')
+
+  const [buscaCliente, setBuscaCliente] = useState('')
+  const [clientes, setClientes] = useState<Cliente[]>([])
+  const [clienteSelecionado, setClienteSelecionado] = useState<Cliente | null>(null)
+
   const [comanda, setComanda] = useState<Comanda | null>(null)
   const [itens, setItens] = useState<Item[]>([])
-  const [cliente, setCliente] = useState('')
-  const [tipo, setTipo] = useState('BALCAO')
   const [numeroComanda, setNumeroComanda] = useState('')
-  const [mostrarCancelar, setMostrarCancelar] = useState(false)
 
   useEffect(() => {
     carregarVitrine()
@@ -58,19 +64,66 @@ export default function NovoPedidoPage() {
     if (!venda) return
 
     setComanda(venda)
+    setBuscaCliente(venda.cliente)
+
     const { data: items } = await supabase.from('sales_items').select('*').eq('sale_id', venda.id)
     setItens(items || [])
   }
 
+  // ------------------------
+  // AUTOCOMPLETE CLIENTE
+  // ------------------------
+  useEffect(() => {
+    if (buscaCliente.length < 2) {
+      setClientes([])
+      return
+    }
+
+    const t = setTimeout(async () => {
+      const { data } = await supabase
+        .from('clientes')
+        .select('*')
+        .ilike('nome', `%${buscaCliente}%`)
+        .order('nome')
+        .limit(8)
+
+      setClientes(data || [])
+    }, 300)
+
+    return () => clearTimeout(t)
+  }, [buscaCliente])
+
+  function selecionarCliente(c: Cliente) {
+    setClienteSelecionado(c)
+    setBuscaCliente(c.nome)
+    setClientes([])
+  }
+
+  // ------------------------
+  // COMANDA
+  // ------------------------
   async function criarComanda() {
     if (!numeroComanda) {
       alert('Informe o número da comanda')
       return
     }
 
+    let clienteId = clienteSelecionado?.id
+
+    if (!clienteId && buscaCliente.trim()) {
+      const { data } = await supabase
+        .from('clientes')
+        .insert({ nome: buscaCliente.trim() })
+        .select()
+        .single()
+
+      clienteId = data.id
+      setClienteSelecionado(data)
+    }
+
     const { data, error } = await supabase.rpc('criar_comanda', {
-      p_cliente: cliente || 'Consumidor Final',
-      p_tipo: tipo,
+      p_cliente: buscaCliente || 'Consumidor Final',
+      p_tipo: 'BALCAO',
       p_comanda: Number(numeroComanda)
     })
 
@@ -79,11 +132,19 @@ export default function NovoPedidoPage() {
       return
     }
 
+    await supabase.from('vendas').update({
+      cliente_id: clienteId,
+      cliente: buscaCliente || 'Consumidor Final'
+    }).eq('id', data.id)
+
     localStorage.setItem('saleId', data.id)
     setComanda(data)
     setItens([])
   }
 
+  // ------------------------
+  // ITENS
+  // ------------------------
   async function adicionar(produto: Produto) {
     if (!comanda) return
 
@@ -142,45 +203,45 @@ export default function NovoPedidoPage() {
     setComanda(vendaAtual)
   }
 
-  function novaComanda() {
-    localStorage.removeItem('saleId')
-    setComanda(null)
-    setItens([])
-    setNumeroComanda('')
-    setCliente('')
-  }
-
-  function fecharComanda() {
-    router.push(`/comandas/${comanda!.id}/fechar`)
-  }
-
-  async function descartarComanda() {
-    await supabase.from('vendas').update({
-      status: 'CANCELADA',
-      total: 0
-    }).eq('id', comanda!.id)
-
-    localStorage.removeItem('saleId')
-    setComanda(null)
-    setItens([])
-    setMostrarCancelar(false)
-  }
-
-  const produtosFiltrados = produtos.filter(p =>
-    p.name.toLowerCase().includes(busca.toLowerCase())
-  )
-
   return (
-    <div className="flex h-screen bg-gray-50">
+    <div className="flex h-screen">
 
-      {/* VITRINE */}
-      <div className="flex-1 p-6 overflow-y-auto">
-        <h1 className="text-2xl font-black mb-4">Novo Pedido</h1>
+      {/* PDV */}
+      <div className="flex-1 p-6">
 
         {!comanda && (
-          <div className="bg-white p-4 rounded-xl mb-6 space-y-2">
-            <input placeholder="Cliente" value={cliente} onChange={e => setCliente(e.target.value)} className="border p-2 w-full" />
-            <input placeholder="Comanda" value={numeroComanda} onChange={e => setNumeroComanda(e.target.value)} className="border p-2 w-full" />
+          <div className="bg-white p-4 rounded-xl mb-4 relative">
+            <input
+              placeholder="Cliente"
+              value={buscaCliente}
+              onChange={e => {
+                setBuscaCliente(e.target.value)
+                setClienteSelecionado(null)
+              }}
+              className="border p-2 w-full mb-2"
+            />
+
+            {clientes.length > 0 && (
+              <div className="absolute bg-white border w-full z-50">
+                {clientes.map(c => (
+                  <div
+                    key={c.id}
+                    onClick={() => selecionarCliente(c)}
+                    className="p-2 hover:bg-gray-100 cursor-pointer"
+                  >
+                    {c.nome}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <input
+              placeholder="Comanda"
+              value={numeroComanda}
+              onChange={e => setNumeroComanda(e.target.value)}
+              className="border p-2 w-full mb-2"
+            />
+
             <button onClick={criarComanda} className="w-full bg-pink-500 text-white py-3 font-bold rounded">
               Criar Comanda
             </button>
@@ -189,87 +250,21 @@ export default function NovoPedidoPage() {
 
         <input
           placeholder="Buscar produto..."
-          value={busca}
-          onChange={e => setBusca(e.target.value)}
+          value={buscaProduto}
+          onChange={e => setBuscaProduto(e.target.value)}
           className="border p-2 w-full mb-4"
         />
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {produtosFiltrados.map(p => (
-            <button
-              key={p.id}
-              onClick={() => adicionar(p)}
-              className="bg-white p-4 rounded-xl shadow hover:border-pink-500 border"
-            >
-              <p className="font-bold text-sm">{p.name}</p>
-              <p className="text-pink-600 font-black">R$ {p.price.toFixed(2)}</p>
+        <div className="grid grid-cols-3 gap-4">
+          {produtos.filter(p => p.name.toLowerCase().includes(buscaProduto.toLowerCase())).map(p => (
+            <button key={p.id} onClick={() => adicionar(p)} className="bg-white p-4 rounded">
+              <p className="font-bold">{p.name}</p>
+              <p>R$ {p.price.toFixed(2)}</p>
             </button>
           ))}
         </div>
+
       </div>
-
-      {/* MINICART */}
-      {comanda && (
-        <div className="w-[380px] bg-white p-6 shadow-xl flex flex-col">
-          <p className="font-black">Pedido: {comanda.numero_pedido}</p>
-          <p className="text-sm mb-4">Comanda: {comanda.comanda_numero}</p>
-
-          <div className="flex-1 overflow-y-auto space-y-3">
-            {itens.map(i => (
-              <div key={i.id} className="border-b pb-2">
-                <p className="font-bold">{i.product_name}</p>
-                <div className="flex items-center justify-between mt-1">
-                  <div className="flex items-center gap-2">
-                    <button onClick={() => alterarQuantidade(i.id, -1)} className="px-2 bg-gray-200">–</button>
-                    <span>{i.quantity}</span>
-                    <button onClick={() => alterarQuantidade(i.id, 1)} className="px-2 bg-pink-500 text-white">+</button>
-                  </div>
-                  <p className="font-bold">R$ {i.final_price.toFixed(2)}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="mt-4 font-black text-lg text-right">
-            Total: R$ {Number(comanda.total || 0).toFixed(2)}
-          </div>
-
-          <div className="mt-4 flex flex-col gap-2">
-            <button onClick={() => setMostrarCancelar(true)} className="py-2 bg-red-100 text-red-600 font-bold rounded">
-              🗑 Descartar Comanda
-            </button>
-            <div className="flex gap-2">
-              <button onClick={novaComanda} className="flex-1 py-3 bg-gray-200 font-bold rounded">
-                Nova Comanda
-              </button>
-              <button onClick={fecharComanda} className="flex-1 py-3 bg-pink-500 text-white font-black rounded">
-                Fechar Comanda
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL CANCELAR */}
-      {mostrarCancelar && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center">
-          <div className="bg-white p-8 rounded-xl w-full max-w-sm">
-            <h2 className="font-black mb-4">Descartar Comanda?</h2>
-            <p className="text-sm mb-6">
-              Esta comanda será marcada como CANCELADA e removida do caixa.
-            </p>
-            <div className="flex gap-3">
-              <button onClick={() => setMostrarCancelar(false)} className="flex-1 py-3 bg-gray-200 rounded font-bold">
-                Voltar
-              </button>
-              <button onClick={descartarComanda} className="flex-1 py-3 bg-red-600 text-white rounded font-black">
-                Confirmar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
     </div>
   )
 }
