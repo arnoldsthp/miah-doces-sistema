@@ -77,7 +77,6 @@ export default function PDV() {
     setItens(items || [])
   }
 
-  // 🔎 Busca dinâmica de clientes
   async function buscarClientes(nome: string) {
     if (!nome || nome.length < 2) {
       setClientesSugestao([])
@@ -101,9 +100,6 @@ export default function PDV() {
     setMostrarSugestoes(false)
   }
 
-  // =======================
-  // CRIAR COMANDA
-  // =======================
   async function criarComanda() {
     if (!cliente || !telefone || !comanda) {
       alert('Informe nome, telefone e comanda')
@@ -142,9 +138,6 @@ export default function PDV() {
     setItens([])
   }
 
-  // =======================
-  // ITENS
-  // =======================
   async function adicionar(p: Produto) {
     if (!venda) return
 
@@ -261,16 +254,12 @@ export default function PDV() {
     setForma('')
   }
 
-  // =======================
-  // UI
-  // =======================
   return (
-    <div className="flex h-screen p-6 gap-6 bg-gray-100">
+    <div className="flex h-screen p-6 gap-6 bg-gray-100 text-gray-900">
 
-      {/* PRODUTOS */}
       <div className="flex-1">
         {!venda && (
-          <div className="bg-white p-4 rounded-xl mb-4 space-y-2 relative">
+          <div className="bg-white p-4 rounded-xl mb-4 space-y-2 relative shadow">
             <input
               value={cliente}
               onChange={e => {
@@ -279,11 +268,11 @@ export default function PDV() {
               }}
               onFocus={() => cliente && setMostrarSugestoes(true)}
               placeholder="Nome do cliente"
-              className="border p-2 w-full"
+              className="border p-2 w-full rounded"
             />
 
             {mostrarSugestoes && clientesSugestao.length > 0 && (
-              <div className="absolute z-10 bg-white border rounded w-full max-h-48 overflow-auto">
+              <div className="absolute z-10 bg-white border rounded w-full max-h-48 overflow-auto shadow">
                 {clientesSugestao.map(c => (
                   <div
                     key={c.id}
@@ -296,28 +285,27 @@ export default function PDV() {
               </div>
             )}
 
-            <input value={telefone} onChange={e => setTelefone(e.target.value)} placeholder="Telefone" className="border p-2 w-full" />
-            <input value={comanda} onChange={e => setComanda(e.target.value)} placeholder="Comanda" className="border p-2 w-full" />
+            <input value={telefone} onChange={e => setTelefone(e.target.value)} placeholder="Telefone" className="border p-2 w-full rounded" />
+            <input value={comanda} onChange={e => setComanda(e.target.value)} placeholder="Comanda" className="border p-2 w-full rounded" />
 
-            <button onClick={criarComanda} className="bg-pink-500 text-white w-full py-3 font-bold rounded">
+            <button onClick={criarComanda} className="bg-pink-600 text-white w-full py-3 font-bold rounded hover:bg-pink-700">
               Criar Comanda
             </button>
           </div>
         )}
 
-        <input value={busca} onChange={e => setBusca(e.target.value)} placeholder="Buscar produto..." className="border p-2 w-full mb-4" />
+        <input value={busca} onChange={e => setBusca(e.target.value)} placeholder="Buscar produto..." className="border p-2 w-full mb-4 rounded" />
 
         <div className="grid grid-cols-3 gap-4">
           {produtos.filter(p => p.name.toLowerCase().includes(busca.toLowerCase())).map(p => (
-            <button key={p.id} onClick={() => adicionar(p)} className="bg-white p-4 rounded shadow">
+            <button key={p.id} onClick={() => adicionar(p)} className="bg-white p-4 rounded-xl shadow hover:shadow-md text-left">
               <p className="font-bold">{p.name}</p>
-              <p>R$ {p.price.toFixed(2)}</p>
+              <p className="text-pink-600 font-semibold">R$ {p.price.toFixed(2)}</p>
             </button>
           ))}
         </div>
       </div>
 
-      {/* MINICART */}
       {venda && (
         <div className="w-96 bg-white rounded-xl p-4 shadow">
           <h3 className="font-black mb-4">Pedido {venda.numero_pedido}</h3>
@@ -326,12 +314,12 @@ export default function PDV() {
             <div key={i.id} className="border-b py-2">
               <p className="font-bold">{i.product_name}</p>
               <div className="flex justify-between items-center">
-                <div>
-                  <button onClick={() => alterar(i.id, -1)}>-</button>
-                  <span className="mx-2">{i.quantity}</span>
-                  <button onClick={() => alterar(i.id, 1)}>+</button>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => alterar(i.id, -1)} className="px-2 py-1 bg-gray-100 rounded">-</button>
+                  <span>{i.quantity}</span>
+                  <button onClick={() => alterar(i.id, 1)} className="px-2 py-1 bg-gray-100 rounded">+</button>
                 </div>
-                <span>R$ {i.final_price.toFixed(2)}</span>
+                <span className="font-semibold">R$ {i.final_price.toFixed(2)}</span>
               </div>
             </div>
           ))}
@@ -340,25 +328,24 @@ export default function PDV() {
 
           <div className="mt-4 space-y-2">
             <button onClick={novaComanda} className="w-full bg-gray-200 py-2 rounded">Nova Comanda</button>
-            <button onClick={cancelarComanda} className="w-full bg-red-500 text-white py-2 rounded">Cancelar</button>
+            <button onClick={cancelarComanda} className="w-full bg-red-600 text-white py-2 rounded">Cancelar</button>
             <button onClick={() => setModalFechar(true)} className="w-full bg-green-600 text-white py-2 rounded">Fechar</button>
           </div>
         </div>
       )}
 
-      {/* MODAL FECHAR */}
       {modalFechar && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center">
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center">
           <div className="bg-white p-6 rounded-xl w-80">
             <h3 className="font-black mb-2">Fechar Comanda</h3>
             <p>Total: R$ {venda!.total.toFixed(2)}</p>
 
-            <input value={descontoRaw} onChange={e => setDescontoRaw(e.target.value)} placeholder="Desconto" className="border p-2 w-full my-2" />
+            <input value={descontoRaw} onChange={e => setDescontoRaw(e.target.value)} placeholder="Desconto" className="border p-2 w-full my-2 rounded" />
 
             <p>Total Final: R$ {(venda!.total - Number(formatarDesconto(descontoRaw))).toFixed(2)}</p>
 
             {['Crédito', 'Débito', 'Pix', 'Dinheiro'].map(f => (
-              <button key={f} onClick={() => setForma(f)} className={`w-full my-1 py-2 rounded ${forma === f ? 'bg-pink-500 text-white' : 'bg-gray-200'}`}>{f}</button>
+              <button key={f} onClick={() => setForma(f)} className={`w-full my-1 py-2 rounded ${forma === f ? 'bg-pink-600 text-white' : 'bg-gray-200'}`}>{f}</button>
             ))}
 
             <button onClick={fechar} className="w-full mt-3 bg-green-600 text-white py-2 rounded">Confirmar</button>
