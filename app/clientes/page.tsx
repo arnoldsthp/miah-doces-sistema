@@ -12,6 +12,10 @@ type Cliente = {
   documento: string | null
 }
 
+function gerarCodigoCliente() {
+  return 'C' + Date.now()
+}
+
 export default function ClientesPage() {
   const [clientes, setClientes] = useState<Cliente[]>([])
   const [busca, setBusca] = useState('')
@@ -94,30 +98,34 @@ export default function ClientesPage() {
       return
     }
 
-    const payload = {
-      nome: nome.trim(),
-      telefone: tel,
-      email: email.trim() || null,
-      documento: documento.trim() || null,
-    }
-
     let error
 
     if (existentes && existentes.length > 0) {
-      // Já existe → UPDATE
+      // UPDATE
       const clienteExistente = existentes[0]
 
       const res = await supabase
         .from('clientes')
-        .update(payload)
+        .update({
+          nome: nome.trim(),
+          telefone: tel,
+          email: email.trim() || null,
+          documento: documento.trim() || null,
+        })
         .eq('id', clienteExistente.id)
 
       error = res.error
     } else {
-      // Não existe → INSERT
+      // INSERT
       const res = await supabase
         .from('clientes')
-        .insert(payload)
+        .insert({
+          codigo: gerarCodigoCliente(),
+          nome: nome.trim(),
+          telefone: tel,
+          email: email.trim() || null,
+          documento: documento.trim() || null,
+        })
 
       error = res.error
     }
