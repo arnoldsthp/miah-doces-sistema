@@ -77,7 +77,8 @@ export default function VendasAnaliticoPage() {
         vendas (
           numero_pedido,
           cliente,
-          forma_pagamento
+          forma_pagamento,
+          total
         )
       `)
       .gte('created_at::date', dataIni)
@@ -90,7 +91,7 @@ export default function VendasAnaliticoPage() {
       return
     }
 
-    // Agrupar por pedido para ratear o desconto corretamente
+    // Agrupar por pedido
     const agrupado: Record<string, any[]> = {}
 
     ;(data || []).forEach((row: any) => {
@@ -106,7 +107,8 @@ export default function VendasAnaliticoPage() {
         (s, i) => s + i.original_price * i.quantity,
         0
       )
-      const totalLiquido = itens.reduce((s, i) => s + i.final_price, 0)
+
+      const totalLiquido = Number(itens[0].vendas.total || 0)
 
       const descontoTotal = Number((totalBruto - totalLiquido).toFixed(2))
       const qtdLinhas = itens.length
