@@ -63,6 +63,8 @@ export default function VendasAnaliticoPage() {
     setLoading(true)
 
     const { dataInicial, dataFinal } = getDateRange(filtro)
+    const dataIni = dataInicial.split('T')[0]
+    const dataFim = dataFinal.split('T')[0]
 
     const { data, error } = await supabase
       .from('sales_items')
@@ -78,8 +80,8 @@ export default function VendasAnaliticoPage() {
           forma_pagamento
         )
       `)
-      .gte('created_at', dataInicial)
-      .lte('created_at', dataFinal)
+      .gte('created_at::date', dataIni)
+      .lte('created_at::date', dataFim)
       .order('created_at', { ascending: false })
 
     if (error) {
@@ -110,7 +112,7 @@ export default function VendasAnaliticoPage() {
       const qtdLinhas = itens.length
 
       const base = Number((descontoTotal / qtdLinhas).toFixed(2))
-      let resto = Number((descontoTotal - base * qtdLinhas).toFixed(2))
+      const resto = Number((descontoTotal - base * qtdLinhas).toFixed(2))
 
       itens.forEach((row, index) => {
         let descLinha = base
