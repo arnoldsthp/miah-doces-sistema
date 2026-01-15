@@ -28,17 +28,20 @@ export default function ClientesPage() {
   }, [])
 
   async function carregarClientes() {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('clientes')
       .select('*')
       .order('nome')
 
-    setClientes(data || [])
+    if (!error) {
+      setClientes(data || [])
+    }
   }
 
   const clientesFiltrados = clientes.filter(c =>
     c.nome.toLowerCase().includes(busca.toLowerCase()) ||
-    c.codigo.toLowerCase().includes(busca.toLowerCase())
+    c.codigo.toLowerCase().includes(busca.toLowerCase()) ||
+    (c.telefone || '').includes(busca)
   )
 
   function abrirNovo() {
@@ -51,7 +54,11 @@ export default function ClientesPage() {
   }
 
   function abrirEditar(c: Cliente) {
-    if (!c.id) return
+    if (!c.id) {
+      alert('Cliente inválido')
+      return
+    }
+
     setClienteEditando(c)
     setNome(c.nome)
     setTelefone(c.telefone || '')
@@ -60,30 +67,54 @@ export default function ClientesPage() {
     setModalAberto(true)
   }
 
-  async function salvar(e: any) {
+  async function salvar(e: React.FormEvent) {
     e.preventDefault()
 
-    const payload: any = { nome }
+    if (!telefone.trim()) {
+      alert('Telefone é obrigatório')
+      return
+    }
 
-    if (telefone.trim() !== '') payload.telefone = telefone
-    if (email.trim() !== '') payload.email = email
-    if (documento.trim() !== '') payload.documento = documento
+    if (!nome.trim()) {
+      alert('Nome é obrigatório')
+      return
+    }
+
+    const tel = telefone.trim()
+
+    // Verificar se já existe cliente com esse telefone
+    const { data: existentes, error: erroBusca } = await supabase
+      .from('clientes')
+      .select('*')
+      .eq('telefone', tel)
+      .limit(1)
+
+    if (erroBusca) {
+      alert('Erro ao validar telefone')
+      return
+    }
+
+    const payload = {
+      nome: nome.trim(),
+      telefone: tel,
+      email: email.trim() || null,
+      documento: documento.trim() || null,
+    }
 
     let error
 
-    if (clienteEditando) {
-      if (!clienteEditando.id) {
-        alert('Erro interno: cliente sem ID')
-        return
-      }
+    if (existentes && existentes.length > 0) {
+      // Já existe → UPDATE
+      const clienteExistente = existentes[0]
 
       const res = await supabase
         .from('clientes')
         .update(payload)
-        .eq('id', clienteEditando.id)
+        .eq('id', clienteExistente.id)
 
       error = res.error
     } else {
+      // Não existe → INSERT
       const res = await supabase
         .from('clientes')
         .insert(payload)
@@ -114,7 +145,7 @@ export default function ClientesPage() {
       </div>
 
       <input
-        placeholder="Buscar por nome ou código..."
+        placeholder="Buscar por nome, código ou telefone..."
         value={busca}
         onChange={e => setBusca(e.target.value)}
         className="border p-2 w-full mb-4"
@@ -171,6 +202,7 @@ export default function ClientesPage() {
                 className="border p-2 w-full"
               />
               <input
+                required
                 value={telefone}
                 onChange={e => setTelefone(e.target.value)}
                 placeholder="Telefone"
