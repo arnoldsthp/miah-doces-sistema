@@ -13,6 +13,7 @@ type LinhaVenda = {
   preco: number
   desc: number
   total: number
+  totalAposDesconto: number
   pagamento: string
 }
 
@@ -122,6 +123,9 @@ export default function VendasAnaliticoPage() {
           descLinha = Number((descLinha + resto).toFixed(2))
         }
 
+        const brutoLinha = row.original_price * row.quantity
+        const totalApos = Number((brutoLinha - descLinha).toFixed(2))
+
         linhasCalculadas.push({
           data: row.created_at,
           pedido: row.vendas.numero_pedido,
@@ -131,6 +135,7 @@ export default function VendasAnaliticoPage() {
           preco: row.original_price,
           desc: descLinha,
           total: row.final_price,
+          totalAposDesconto: totalApos,
           pagamento: row.vendas.forma_pagamento,
         })
       })
@@ -155,6 +160,7 @@ export default function VendasAnaliticoPage() {
         PRECO: l.preco,
         DESCONTO: l.desc,
         TOTAL: l.total,
+        TOTAL_APOS_DESCONTO: l.totalAposDesconto,
         PAGAMENTO: l.pagamento,
       }))
     )
@@ -203,6 +209,7 @@ export default function VendasAnaliticoPage() {
               <th className="p-3">PREÇO</th>
               <th className="p-3 text-red-600">DESC.</th>
               <th className="p-3 text-green-600">TOTAL</th>
+              <th className="p-3 text-blue-600">TOTAL APÓS DESC.</th>
               <th className="p-3">PAGAMENTO</th>
             </tr>
           </thead>
@@ -231,6 +238,12 @@ export default function VendasAnaliticoPage() {
                   </td>
                   <td className="p-3 text-green-600 font-semibold">
                     {row.total.toLocaleString('pt-BR', {
+                      style: 'currency',
+                      currency: 'BRL',
+                    })}
+                  </td>
+                  <td className="p-3 text-blue-600 font-semibold">
+                    {row.totalAposDesconto.toLocaleString('pt-BR', {
                       style: 'currency',
                       currency: 'BRL',
                     })}
