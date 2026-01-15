@@ -71,19 +71,23 @@ export default function PDV() {
       return
     }
 
-    // 1️⃣ Buscar cliente pelo nome
-    const { data: encontrados } = await supabase
+    // Buscar cliente pelo nome
+    const { data: encontrados, error: erroBusca } = await supabase
       .from('clientes')
       .select('*')
       .eq('nome', cliente)
       .limit(1)
+
+    if (erroBusca) {
+      alert('Erro ao buscar cliente')
+      return
+    }
 
     let clienteId: string
 
     if (encontrados && encontrados.length > 0) {
       clienteId = encontrados[0].id
     } else {
-      // 2️⃣ Criar cliente automaticamente
       const { data: novo, error: erroNovo } = await supabase
         .from('clientes')
         .insert({
@@ -101,7 +105,6 @@ export default function PDV() {
       clienteId = novo.id
     }
 
-    // 3️⃣ Criar comanda vinculada ao cliente
     const { data, error } = await supabase.rpc('criar_comanda', {
       p_cliente: cliente,
       p_cliente_id: clienteId,
@@ -221,8 +224,140 @@ export default function PDV() {
 
   return (
     <div className="flex h-screen p-6 gap-6">
-      {/* PDV UI original mantido */}
-      {/* ... (UI não foi alterada) */}
+      {/* Área esquerda */}
+      <div className="flex-1">
+        {!venda && (
+          <div className="bg-white p-4 rounded-xl mb-4">
+            <input
+              value={cliente}
+              onChange={e => setCliente(e.target.value)}
+              placeholder="Cliente"
+              className="border p-2 w-full mb-2"
+            />
+            <input
+              value={comanda}
+              onChange={e => setComanda(e.target.value)}
+              placeholder="Comanda"
+              className="border p-2 w-full mb-2"
+            />
+            <button
+              onClick={criarComanda}
+              className="bg-pink-500 text-white w-full py-3 font-bold rounded"
+            >
+              Criar Comanda
+            </button>
+          </div>
+        )}
+
+        <input
+          placeholder="Buscar produto..."
+          value={busca}
+          onChange={e => setBusca(e.target.value)}
+          className="border p-2 w-full mb-4"
+        />
+
+        <div className="grid grid-cols-3 gap-4">
+          {produtos
+            .filter(p => p.name.toLowerCase().includes(busca.toLowerCase()))
+            .map(p => (
+              <button
+                key={p.id}
+                onClick={() => adicionar(p)}
+                className="bg-white p-4 rounded shadow"
+              >
+                <p className="font-bold">{p.name}</p>
+                <p>R$ {p.price.toFixed(2)}</p>
+              </button>
+            ))}
+        </div>
+      </div>
+
+      {/* Área direita */}
+      {venda && (
+        <div className="w-80 bg-white rounded-xl p-4 shadow">
+          <h3 className="font-black mb-2">Pedido {venda.numero_pedido}</h3>
+
+          {itens.map(i => (
+            <div key={i.id} className="border-b py-2">
+              <p className="font-bold">{i.product_name}</p>
+              <div className="flex justify-between items-center">
+                <div>
+                  <button onClick={() => alterar(i.id, -1)}>-</button>
+                  <span className="mx-2">{i.quantity}</span>
+                  <button onClick={() => alterar(i.id, 1)}>+</button>
+                </div>
+                <span>R$ {i.final_price.toFixed(2)}</span>
+              </div>
+            </div>
+          ))}
+
+          <p className="font-black text-right mt-4">
+            Total: R$ {venda.total.toFixed(2)}
+          </p>
+
+          <div className="mt-4 space-y-2">
+            <button
+              onClick={novaComanda}
+              className="w-full bg-gray-200 py-2 rounded"
+            >
+              Nova Comanda
+            </button>
+            <button
+              onClick={cancelarComanda}
+              className="w-full bg-red-500 text-white py-2 rounded"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={() => setModalFechar(true)}
+              className="w-full bg-green-600 text-white py-2 rounded"
+            >
+              Fechar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Modal fechar */}
+      {modalFechar && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center">
+          <div className="bg-white p-6 rounded-xl w-80">
+            <h3 className="font-black mb-2">Fechar Comanda</h3>
+            <p>Total: R$ {venda!.total.toFixed(2)}</p>
+
+            <input
+              placeholder="Desconto"
+              value={descontoRaw}
+              onChange={e => setDescontoRaw(e.target.value)}
+              className="border p-2 w-full my-2"
+            />
+
+            <p>
+              Total Final: R${' '}
+              {(venda!.total - Number(formatarDesconto(descontoRaw))).toFixed(2)}
+            </p>
+
+            {['Crédito', 'Débito', 'Pix', 'Dinheiro'].map(f => (
+              <button
+                key={f}
+                onClick={() => setForma(f)}
+                className={`w-full my-1 py-2 rounded ${
+                  forma === f ? 'bg-pink-500 text-white' : 'bg-gray-200'
+                }`}
+              >
+                {f}
+              </button>
+            ))}
+
+            <button
+              onClick={fechar}
+              className="w-full mt-3 bg-green-600 text-white py-2 rounded"
+            >
+              Confirmar
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
