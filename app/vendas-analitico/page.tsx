@@ -33,7 +33,6 @@ function getDateRange(filtro: Filtro) {
       inicio.setDate(inicio.getDate() - 1)
       inicio.setHours(0, 0, 0, 0)
       fim.setDate(fim.getDate() - 1)
-      fim.setHours(23, 59, 59, 999)
       break
     case '7D':
       inicio.setDate(inicio.getDate() - 6)
@@ -92,7 +91,6 @@ export default function VendasAnaliticoPage() {
       return
     }
 
-    // Agrupar por pedido
     const agrupado: Record<string, any[]> = {}
 
     ;(data || []).forEach((row: any) => {
@@ -110,7 +108,6 @@ export default function VendasAnaliticoPage() {
       )
 
       const totalLiquido = Number(itens[0].vendas.total || 0)
-
       const descontoTotal = Number((totalBruto - totalLiquido).toFixed(2))
       const qtdLinhas = itens.length
 
@@ -150,29 +147,17 @@ export default function VendasAnaliticoPage() {
   }, [filtro])
 
   function exportarExcel() {
-    const ws = XLSX.utils.json_to_sheet(
-      linhas.map((l) => ({
-        DATA: new Date(l.data).toLocaleString('pt-BR'),
-        PEDIDO: l.pedido,
-        CLIENTE: l.cliente,
-        PRODUTO: l.produto,
-        QTD: l.qtd,
-        PRECO: l.preco,
-        DESCONTO: l.desc,
-        TOTAL: l.total,
-        TOTAL_APOS_DESCONTO: l.totalAposDesconto,
-        PAGAMENTO: l.pagamento,
-      }))
-    )
-
+    const ws = XLSX.utils.json_to_sheet(linhas)
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'Vendas')
     XLSX.writeFile(wb, 'vendas-analitico.xlsx')
   }
 
   return (
-    <div className="p-6">
-      <h1 className="text-3xl font-bold mb-6">Análise de Vendas por Item</h1>
+    <div className="p-6 text-gray-900">
+      <h1 className="text-3xl font-bold mb-6">
+        Análise de Vendas por Item
+      </h1>
 
       <div className="flex gap-3 mb-6 items-center">
         {(['HOJE', 'ONTEM', '7D', '15D', '30D'] as Filtro[]).map((f) => (
@@ -182,7 +167,7 @@ export default function VendasAnaliticoPage() {
             className={`px-4 py-2 rounded-full font-semibold ${
               filtro === f
                 ? 'bg-pink-600 text-white'
-                : 'bg-gray-200 text-gray-700'
+                : 'bg-gray-200 text-gray-900 hover:bg-gray-300'
             }`}
           >
             {f}
@@ -198,51 +183,60 @@ export default function VendasAnaliticoPage() {
       </div>
 
       <div className="bg-white rounded-xl shadow overflow-x-auto">
-        <table className="min-w-full">
+        <table className="min-w-full text-sm">
           <thead>
-            <tr className="bg-gray-100 text-left">
+            <tr className="bg-gray-100 border-b font-bold">
               <th className="p-3">DATA</th>
               <th className="p-3">PEDIDO</th>
               <th className="p-3">CLIENTE</th>
               <th className="p-3">PRODUTO</th>
-              <th className="p-3">QTD</th>
+              <th className="p-3 text-center">QTD</th>
               <th className="p-3">PREÇO</th>
-              <th className="p-3 text-red-600">DESC.</th>
-              <th className="p-3 text-green-600">TOTAL</th>
-              <th className="p-3 text-blue-600">TOTAL APÓS DESC.</th>
-              <th className="p-3">PAGAMENTO</th>
+              <th className="p-3">TOTAL</th>
+              <th className="p-3">DESCONTO</th>
+              <th className="p-3 font-bold">TOTAL FINAL</th>
+              <th className="p-3">MEIO PGTO</th>
             </tr>
           </thead>
+
           <tbody>
+            {loading && (
+              <tr>
+                <td colSpan={10} className="p-6 text-center">
+                  Carregando…
+                </td>
+              </tr>
+            )}
+
             {!loading &&
               linhas.map((row, idx) => (
-                <tr key={idx} className="border-t">
+                <tr key={idx} className="border-t hover:bg-gray-50">
                   <td className="p-3">
                     {new Date(row.data).toLocaleString('pt-BR')}
                   </td>
                   <td className="p-3">{row.pedido}</td>
                   <td className="p-3">{row.cliente}</td>
                   <td className="p-3">{row.produto}</td>
-                  <td className="p-3">{row.qtd}</td>
+                  <td className="p-3 text-center">{row.qtd}</td>
                   <td className="p-3">
                     {row.preco.toLocaleString('pt-BR', {
                       style: 'currency',
                       currency: 'BRL',
                     })}
                   </td>
-                  <td className="p-3 text-red-600">
-                    {row.desc.toLocaleString('pt-BR', {
-                      style: 'currency',
-                      currency: 'BRL',
-                    })}
-                  </td>
-                  <td className="p-3 text-green-600 font-semibold">
+                  <td className="p-3">
                     {row.total.toLocaleString('pt-BR', {
                       style: 'currency',
                       currency: 'BRL',
                     })}
                   </td>
-                  <td className="p-3 text-blue-600 font-semibold">
+                  <td className="p-3">
+                    {row.desc.toLocaleString('pt-BR', {
+                      style: 'currency',
+                      currency: 'BRL',
+                    })}
+                  </td>
+                  <td className="p-3 font-bold">
                     {row.totalAposDesconto.toLocaleString('pt-BR', {
                       style: 'currency',
                       currency: 'BRL',
