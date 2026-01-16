@@ -86,7 +86,6 @@ export default function ClientesPage() {
 
     const tel = telefone.trim()
 
-    // Verificar se já existe cliente com esse telefone
     const { data: existentes, error: erroBusca } = await supabase
       .from('clientes')
       .select('*')
@@ -101,7 +100,6 @@ export default function ClientesPage() {
     let error
 
     if (existentes && existentes.length > 0) {
-      // UPDATE
       const clienteExistente = existentes[0]
 
       const res = await supabase
@@ -116,7 +114,6 @@ export default function ClientesPage() {
 
       error = res.error
     } else {
-      // INSERT
       const res = await supabase
         .from('clientes')
         .insert({
@@ -143,7 +140,7 @@ export default function ClientesPage() {
   return (
     <div className="p-8 bg-gray-50 min-h-screen">
       <div className="flex justify-between mb-6">
-        <h1 className="text-2xl font-black">Clientes</h1>
+        <h1 className="text-2xl font-black text-gray-800">Clientes</h1>
         <button
           onClick={abrirNovo}
           className="bg-pink-500 text-white px-4 py-2 rounded font-bold"
@@ -156,27 +153,31 @@ export default function ClientesPage() {
         placeholder="Buscar por nome, código ou telefone..."
         value={busca}
         onChange={e => setBusca(e.target.value)}
-        className="border p-2 w-full mb-4"
+        className="border p-2 w-full mb-4 text-sm font-medium text-gray-800 placeholder-gray-400 rounded"
       />
 
       <div className="bg-white rounded-xl shadow overflow-hidden">
         <table className="w-full text-sm">
-          <thead className="bg-gray-100 text-xs uppercase">
+          <thead className="bg-gray-100">
             <tr>
-              <th className="p-3">Código</th>
-              <th className="p-3">Nome</th>
-              <th className="p-3">Telefone</th>
-              <th className="p-3">Email</th>
+              <th className="p-3 text-left text-sm font-semibold text-gray-700">Código</th>
+              <th className="p-3 text-left text-sm font-semibold text-gray-700">Nome</th>
+              <th className="p-3 text-left text-sm font-semibold text-gray-700">Telefone</th>
+              <th className="p-3 text-left text-sm font-semibold text-gray-700">Email</th>
               <th className="p-3"></th>
             </tr>
           </thead>
           <tbody>
             {clientesFiltrados.map(c => (
               <tr key={c.id} className="border-b hover:bg-gray-50">
-                <td className="p-3 font-bold">{c.codigo}</td>
-                <td className="p-3">{c.nome}</td>
-                <td className="p-3">{c.telefone || '-'}</td>
-                <td className="p-3">{c.email || '-'}</td>
+                <td className="p-3 font-semibold text-gray-800">{c.codigo}</td>
+                <td className="p-3 font-medium text-gray-800">{c.nome}</td>
+                <td className="p-3 font-medium text-gray-800">
+                  {c.telefone || <span className="text-gray-400">-</span>}
+                </td>
+                <td className="p-3 font-medium text-gray-800">
+                  {c.email || <span className="text-gray-400">-</span>}
+                </td>
                 <td className="p-3 text-right">
                   <button
                     onClick={() => abrirEditar(c)}
@@ -197,7 +198,7 @@ export default function ClientesPage() {
             onSubmit={salvar}
             className="bg-white p-8 rounded-xl w-full max-w-md"
           >
-            <h2 className="font-black mb-4">
+            <h2 className="font-black text-gray-800 mb-4">
               {clienteEditando ? 'Editar Cliente' : 'Novo Cliente'}
             </h2>
 
@@ -207,26 +208,26 @@ export default function ClientesPage() {
                 value={nome}
                 onChange={e => setNome(e.target.value)}
                 placeholder="Nome"
-                className="border p-2 w-full"
+                className="border p-2 w-full text-sm font-medium text-gray-800 placeholder-gray-400 rounded"
               />
               <input
                 required
                 value={telefone}
                 onChange={e => setTelefone(e.target.value)}
                 placeholder="Telefone"
-                className="border p-2 w-full"
+                className="border p-2 w-full text-sm font-medium text-gray-800 placeholder-gray-400 rounded"
               />
               <input
                 value={email}
                 onChange={e => setEmail(e.target.value)}
                 placeholder="Email"
-                className="border p-2 w-full"
+                className="border p-2 w-full text-sm font-medium text-gray-800 placeholder-gray-400 rounded"
               />
               <input
                 value={documento}
                 onChange={e => setDocumento(e.target.value)}
                 placeholder="CPF / CNPJ"
-                className="border p-2 w-full"
+                className="border p-2 w-full text-sm font-medium text-gray-800 placeholder-gray-400 rounded"
               />
             </div>
 
@@ -234,7 +235,7 @@ export default function ClientesPage() {
               <button
                 type="button"
                 onClick={() => setModalAberto(false)}
-                className="flex-1 bg-gray-200 py-2 rounded"
+                className="flex-1 bg-gray-200 py-2 rounded font-medium text-gray-700"
               >
                 Cancelar
               </button>
