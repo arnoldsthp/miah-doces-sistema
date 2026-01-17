@@ -54,8 +54,16 @@ export default function PDV() {
     carregarVendaAtiva()
   }, [])
 
+  // 🔴 ÚNICA ALTERAÇÃO
   async function carregarProdutos() {
-    const { data } = await supabase.from('inventory').select('*').order('name')
+    const { data, error } = await supabase.rpc('get_vitrine_produtos')
+
+    if (error) {
+      console.error('Erro ao carregar produtos:', error)
+      setProdutos([])
+      return
+    }
+
     setProdutos(data || [])
   }
 
