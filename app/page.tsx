@@ -110,10 +110,7 @@ export default function PDV() {
 
     const { data: clienteId, error: errCliente } = await supabase.rpc(
       'pdv_get_or_create_cliente',
-      {
-        p_nome: cliente,
-        p_telefone: tel,
-      }
+      { p_nome: cliente, p_telefone: tel }
     )
 
     if (errCliente) {
@@ -170,7 +167,7 @@ export default function PDV() {
   }
 
   async function alterar(id: string, delta: number) {
-    const item = itens.find((i) => i.id === id)
+    const item = itens.find(i => i.id === id)
     if (!item) return
 
     const nova = item.quantity + delta
@@ -255,11 +252,13 @@ export default function PDV() {
   }
 
   return (
-    <div className="flex h-screen p-6 gap-6 bg-gray-100 text-gray-900">
+    <div className="flex h-screen p-6 gap-6 bg-gray-100 text-gray-800 text-[13px]">
 
+      {/* ESQUERDA */}
       <div className="flex-1">
+
         {!venda && (
-          <div className="bg-white p-4 rounded-xl mb-4 space-y-2 relative shadow">
+          <div className="bg-white p-4 rounded-xl mb-4 space-y-2 shadow">
             <input
               value={cliente}
               onChange={e => {
@@ -268,16 +267,16 @@ export default function PDV() {
               }}
               onFocus={() => cliente && setMostrarSugestoes(true)}
               placeholder="Nome do cliente"
-              className="border p-2 w-full rounded"
+              className="border px-3 py-2.5 w-full rounded text-[13px]"
             />
 
             {mostrarSugestoes && clientesSugestao.length > 0 && (
-              <div className="absolute z-10 bg-white border rounded w-full max-h-48 overflow-auto shadow">
+              <div className="absolute z-10 bg-white border rounded w-full max-h-48 overflow-auto shadow text-[13px]">
                 {clientesSugestao.map(c => (
                   <div
                     key={c.id}
                     onClick={() => selecionarCliente(c)}
-                    className="p-2 hover:bg-pink-100 cursor-pointer text-sm"
+                    className="px-3 py-2 hover:bg-pink-50 cursor-pointer"
                   >
                     <strong>{c.codigo}</strong> — {c.nome} ({c.telefone})
                   </div>
@@ -285,70 +284,151 @@ export default function PDV() {
               </div>
             )}
 
-            <input value={telefone} onChange={e => setTelefone(e.target.value)} placeholder="Telefone" className="border p-2 w-full rounded" />
-            <input value={comanda} onChange={e => setComanda(e.target.value)} placeholder="Comanda" className="border p-2 w-full rounded" />
+            <input
+              value={telefone}
+              onChange={e => setTelefone(e.target.value)}
+              placeholder="Telefone"
+              className="border px-3 py-2.5 w-full rounded text-[13px]"
+            />
 
-            <button onClick={criarComanda} className="bg-pink-600 text-white w-full py-3 font-bold rounded hover:bg-pink-700">
+            <input
+              value={comanda}
+              onChange={e => setComanda(e.target.value)}
+              placeholder="Comanda"
+              className="border px-3 py-2.5 w-full rounded text-[13px]"
+            />
+
+            <button
+              onClick={criarComanda}
+              className="bg-pink-600 text-white w-full py-3 font-semibold rounded hover:bg-pink-700"
+            >
               Criar Comanda
             </button>
           </div>
         )}
 
-        <input value={busca} onChange={e => setBusca(e.target.value)} placeholder="Buscar produto..." className="border p-2 w-full mb-4 rounded" />
+        <input
+          value={busca}
+          onChange={e => setBusca(e.target.value)}
+          placeholder="Buscar produto..."
+          className="border px-3 py-2.5 w-full mb-4 rounded text-[13px]"
+        />
 
         <div className="grid grid-cols-3 gap-4">
-          {produtos.filter(p => p.name.toLowerCase().includes(busca.toLowerCase())).map(p => (
-            <button key={p.id} onClick={() => adicionar(p)} className="bg-white p-4 rounded-xl shadow hover:shadow-md text-left">
-              <p className="font-bold">{p.name}</p>
-              <p className="text-pink-600 font-semibold">R$ {p.price.toFixed(2)}</p>
-            </button>
-          ))}
+          {produtos
+            .filter(p => p.name.toLowerCase().includes(busca.toLowerCase()))
+            .map(p => (
+              <button
+                key={p.id}
+                onClick={() => adicionar(p)}
+                className="bg-white px-4 py-3 rounded-xl shadow hover:shadow-md text-left"
+              >
+                <p className="font-medium whitespace-nowrap truncate" title={p.name}>
+                  {p.name}
+                </p>
+                <p className="text-pink-600 font-bold whitespace-nowrap">
+                  R$ {p.price.toFixed(2)}
+                </p>
+              </button>
+            ))}
         </div>
       </div>
 
+      {/* DIREITA */}
       {venda && (
         <div className="w-96 bg-white rounded-xl p-4 shadow">
-          <h3 className="font-black mb-4">Pedido {venda.numero_pedido}</h3>
+          <h3 className="font-black mb-3">
+            Pedido {venda.numero_pedido}
+          </h3>
 
-          {itens.map(i => (
-            <div key={i.id} className="border-b py-2">
-              <p className="font-bold">{i.product_name}</p>
-              <div className="flex justify-between items-center">
-                <div className="flex items-center gap-2">
-                  <button onClick={() => alterar(i.id, -1)} className="px-2 py-1 bg-gray-100 rounded">-</button>
-                  <span>{i.quantity}</span>
-                  <button onClick={() => alterar(i.id, 1)} className="px-2 py-1 bg-gray-100 rounded">+</button>
+          <div className="space-y-2">
+            {itens.map(i => (
+              <div key={i.id} className="border-b pb-2">
+                <p className="font-medium whitespace-nowrap truncate" title={i.product_name}>
+                  {i.product_name}
+                </p>
+
+                <div className="flex justify-between items-center mt-1">
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => alterar(i.id, -1)}
+                      className="px-2 py-1 bg-gray-100 rounded"
+                    >
+                      -
+                    </button>
+                    <span>{i.quantity}</span>
+                    <button
+                      onClick={() => alterar(i.id, 1)}
+                      className="px-2 py-1 bg-gray-100 rounded"
+                    >
+                      +
+                    </button>
+                  </div>
+
+                  <span className="font-bold">
+                    R$ {i.final_price.toFixed(2)}
+                  </span>
                 </div>
-                <span className="font-semibold">R$ {i.final_price.toFixed(2)}</span>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
 
-          <p className="font-black text-right mt-4">Total: R$ {venda.total.toFixed(2)}</p>
+          <p className="font-black text-right mt-4">
+            Total: R$ {venda.total.toFixed(2)}
+          </p>
 
           <div className="mt-4 space-y-2">
-            <button onClick={novaComanda} className="w-full bg-gray-200 py-2 rounded">Nova Comanda</button>
-            <button onClick={cancelarComanda} className="w-full bg-red-600 text-white py-2 rounded">Cancelar</button>
-            <button onClick={() => setModalFechar(true)} className="w-full bg-green-600 text-white py-2 rounded">Fechar</button>
+            <button onClick={novaComanda} className="w-full bg-gray-200 py-2 rounded">
+              Nova Comanda
+            </button>
+            <button onClick={cancelarComanda} className="w-full bg-red-600 text-white py-2 rounded">
+              Cancelar
+            </button>
+            <button onClick={() => setModalFechar(true)} className="w-full bg-green-600 text-white py-2 rounded">
+              Fechar
+            </button>
           </div>
         </div>
       )}
 
       {modalFechar && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center">
-          <div className="bg-white p-6 rounded-xl w-80">
+          <div className="bg-white p-5 rounded-xl w-80 text-[13px]">
             <h3 className="font-black mb-2">Fechar Comanda</h3>
+
             <p>Total: R$ {venda!.total.toFixed(2)}</p>
 
-            <input value={descontoRaw} onChange={e => setDescontoRaw(e.target.value)} placeholder="Desconto" className="border p-2 w-full my-2 rounded" />
+            <input
+              value={descontoRaw}
+              onChange={e => setDescontoRaw(e.target.value)}
+              placeholder="Desconto"
+              className="border px-3 py-2 w-full my-2 rounded"
+            />
 
-            <p>Total Final: R$ {(venda!.total - Number(formatarDesconto(descontoRaw))).toFixed(2)}</p>
+            <p>
+              Total Final: R$ {(venda!.total - Number(formatarDesconto(descontoRaw))).toFixed(2)}
+            </p>
 
             {['Crédito', 'Débito', 'Pix', 'Dinheiro'].map(f => (
-              <button key={f} onClick={() => setForma(f)} className={`w-full my-1 py-2 rounded ${forma === f ? 'bg-pink-600 text-white' : 'bg-gray-200'}`}>{f}</button>
+              <button
+                key={f}
+                onClick={() => setForma(f)}
+                className={`w-full my-1 py-2 rounded ${
+                  forma === f
+                    ? 'bg-pink-600 text-white'
+                    : 'bg-gray-200'
+                }`}
+              >
+                {f}
+              </button>
             ))}
 
-            <button onClick={fechar} className="w-full mt-3 bg-green-600 text-white py-2 rounded">Confirmar</button>
+            <button
+              onClick={fechar}
+              className="w-full mt-3 bg-green-600 text-white py-2 rounded"
+            >
+              Confirmar
+            </button>
           </div>
         </div>
       )}
