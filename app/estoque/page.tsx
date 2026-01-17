@@ -72,10 +72,11 @@ export default function GestaoEstoque() {
       p_tipo: 'VENDA',
     })
 
-    if (error || !data) {
-      alert('Erro ao criar item')
-      return null
-    }
+   if (error || !data) {
+  console.error('RPC get_or_create_item error:', error)
+  alert(error?.message || 'Erro desconhecido')
+  return null
+}
 
     return data
   }
