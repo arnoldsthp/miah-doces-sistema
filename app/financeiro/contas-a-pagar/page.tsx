@@ -10,14 +10,25 @@ type Despesa = {
   valor: number
   data_despesa: string | null
   data_vencimento: string | null
-  status: string | null
+  data_pagamento: string | null
+  pago: boolean
 }
 
 const STATUS = ['TODAS', 'ABERTA', 'VENCIDA', 'PAGA'] as const
 
+function hojeISO() {
+  return new Date().toISOString().slice(0, 10)
+}
+
 function formatarData(data: string | null) {
   if (!data) return '-'
   return new Date(data).toLocaleDateString('pt-BR')
+}
+
+function calcularStatus(d: Despesa): 'ABERTA' | 'VENCIDA' | 'PAGA' {
+  if (d.pago) return 'PAGA'
+  if (d.data_vencimento && d.data_vencimento < hojeISO()) return 'VENCIDA'
+  return 'ABERTA'
 }
 
 export default function ContasAPagar() {
@@ -26,6 +37,7 @@ export default function ContasAPagar() {
     useState<(typeof STATUS)[number]>('TODAS')
 
   const [editando, setEditando] = useState<Despesa | null>(null)
+  const [processando, setProcessando] = useState<number | null>(null)
 
   useEffect(() => {
     carregar()
@@ -41,10 +53,25 @@ export default function ContasAPagar() {
   }
 
   async function marcarPaga(id: number) {
-    await supabase
+    const ok = confirm('Deseja realmente marcar esta despesa como paga?')
+    if (!ok) return
+
+    setProcessando(id)
+
+    const { error } = await supabase
       .from('despesas_fixas')
-      .update({ status: 'PAGA', pago: true })
+      .update({
+        pago: true,
+        data_pagamento: hojeISO(),
+      })
       .eq('id', id)
+
+    setProcessando(null)
+
+    if (error) {
+      alert('Erro ao marcar como paga: ' + error.message)
+      return
+    }
 
     carregar()
   }
@@ -67,21 +94,18 @@ export default function ContasAPagar() {
     carregar()
   }
 
-  const normalizar = (s: string | null) =>
-    (s || 'ABERTA').toUpperCase()
-
   const filtradas =
     filtro === 'TODAS'
       ? todas
-      : todas.filter(d => normalizar(d.status) === filtro)
+      : todas.filter(d => calcularStatus(d) === filtro)
 
-  const totalPorStatus = (s: string) =>
+  const totalPorStatus = (s: 'ABERTA' | 'VENCIDA' | 'PAGA') =>
     todas
-      .filter(d => normalizar(d.status) === s)
+      .filter(d => calcularStatus(d) === s)
       .reduce((acc, d) => acc + Number(d.valor), 0)
 
   return (
-    <div className="space-y-6 text-[13px] text-gray-800 bg-gray-100 min-h-screen">
+    <div className="space-y-6 text-[13px] text-gray-800 bg-gray-100 min-h-screen p-6">
 
       <h1 className="text-2xl font-black">Contas a Pagar</h1>
 
@@ -93,26 +117,20 @@ export default function ContasAPagar() {
       </div>
 
       {/* FILTRO */}
-      <div className="flex justify-between items-center">
-        <div className="flex gap-2">
-          {STATUS.map(s => (
-            <button
-              key={s}
-              onClick={() => setFiltro(s)}
-              className={`px-4 py-2 rounded-full text-xs font-semibold ${
-                filtro === s
-                  ? 'bg-pink-600 text-white'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-            >
-              {s}
-            </button>
-          ))}
-        </div>
-
-        <button className="bg-green-600 text-white px-4 py-2 rounded text-xs font-semibold hover:bg-green-700">
-          Exportar Excel
-        </button>
+      <div className="flex gap-2">
+        {STATUS.map(s => (
+          <button
+            key={s}
+            onClick={() => setFiltro(s)}
+            className={`px-4 py-2 rounded-full text-xs font-semibold ${
+              filtro === s
+                ? 'bg-pink-600 text-white'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}
+          >
+            {s}
+          </button>
+        ))}
       </div>
 
       {/* TABELA */}
@@ -133,7 +151,7 @@ export default function ContasAPagar() {
 
           <tbody>
             {filtradas.map(d => {
-              const st = normalizar(d.status)
+              const st = calcularStatus(d)
 
               return (
                 <tr key={d.id} className="border-t hover:bg-gray-50">
@@ -143,9 +161,8 @@ export default function ContasAPagar() {
                   <td className="p-3">{d.descricao}</td>
                   <td className="p-3">{d.fornecedor || '-'}</td>
 
-                  {/* ÚNICO NEGRITO */}
                   <td className="p-3 text-right font-bold">
-                    R$ {Number(d.valor).toFixed(2)}
+                    R$ {d.valor.toFixed(2)}
                   </td>
 
                   <td className="p-3 text-center">{st}</td>
@@ -161,10 +178,13 @@ export default function ContasAPagar() {
                         </button>
 
                         <button
+                          disabled={processando === d.id}
                           onClick={() => marcarPaga(d.id)}
-                          className="text-green-600 hover:underline"
+                          className="text-green-600 hover:underline font-semibold disabled:opacity-50"
                         >
-                          Marcar como paga
+                          {processando === d.id
+                            ? 'Processando...'
+                            : 'Marcar como paga'}
                         </button>
                       </>
                     )}
@@ -184,7 +204,7 @@ export default function ContasAPagar() {
         </table>
       </div>
 
-      {/* MODAL EDIÇÃO */}
+      {/* MODAL EDIÇÃO (inalterado) */}
       {editando && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl p-6 w-full max-w-md space-y-4">
@@ -196,7 +216,6 @@ export default function ContasAPagar() {
                 setEditando({ ...editando, descricao: e.target.value })
               }
               className="w-full border px-3 py-2 rounded"
-              placeholder="Descrição"
             />
 
             <input
@@ -205,7 +224,6 @@ export default function ContasAPagar() {
                 setEditando({ ...editando, fornecedor: e.target.value })
               }
               className="w-full border px-3 py-2 rounded"
-              placeholder="Fornecedor"
             />
 
             <input
@@ -215,7 +233,6 @@ export default function ContasAPagar() {
                 setEditando({ ...editando, valor: Number(e.target.value) })
               }
               className="w-full border px-3 py-2 rounded"
-              placeholder="Valor"
             />
 
             <div className="grid grid-cols-2 gap-3">
